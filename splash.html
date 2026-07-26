@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+
+  .shell {
+    width: 100%;
+    height: 100%;
+    background: #050507;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  #hole {
+    width: 280px;
+    height: 280px;
+    margin-top: 34px;
+    opacity: 0;
+    animation: appear 1.6s ease 200ms forwards;
+  }
+
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 2px;
+    opacity: 0;
+    animation: appear 1s ease 900ms forwards;
+  }
+
+  .wm-logo {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+  }
+
+  .wm-text {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.94);
+    line-height: 1;
+  }
+
+  .track {
+    width: 128px;
+    height: 1px;
+    margin-top: 30px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 1px;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    animation: appear 700ms ease 1.4s forwards;
+  }
+
+  .track::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 44px;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+    animation: slide 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  .ver {
+    position: absolute;
+    bottom: 16px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.22);
+    opacity: 0;
+    animation: appear 700ms ease 1.7s forwards;
+  }
+
+  @keyframes appear { to { opacity: 1; } }
+
+  @keyframes slide {
+    0% { transform: translateX(-44px); }
+    100% { transform: translateX(128px); }
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <canvas id="hole"></canvas>
+    <div class="wordmark">
+      <img class="wm-logo" src="/wawity.ico" alt="" draggable="false" />
+      <span class="wm-text">wawity</span>
+    </div>
+    <div class="track"></div>
+    <div class="ver">v1.0</div>
+  </div>
+<script>
+(function () {
+  var vertSrc = 'attribute vec2 spot;\nvoid main() {\n  gl_Position = vec4(spot, 0.0, 1.0);\n}';
+
+  var fragSrc = [
+    'precision highp float;',
+    'uniform vec2 res;',
+    'uniform float time;',
+    'const float DIN = 2.6;',
+    'const float DOUT = 9.5;',
+    'float hash(vec2 s) {',
+    '  return fract(sin(dot(s, vec2(127.1, 311.7))) * 43758.5453123);',
+    '}',
+    'float noise(vec2 s) {',
+    '  vec2 i = floor(s);',
+    '  vec2 f = fract(s);',
+    '  vec2 u = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash(i);',
+    '  float b = hash(i + vec2(1.0, 0.0));',
+    '  float c = hash(i + vec2(0.0, 1.0));',
+    '  float d = hash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);',
+    '}',
+    'float fbm(vec2 s) {',
+    '  float acc = 0.0;',
+    '  float amp = 0.5;',
+    '  for (int i = 0; i < 4; i++) {',
+    '    acc += amp * noise(s);',
+    '    s = s * 2.03 + vec2(19.7, 7.3);',
+    '    amp *= 0.5;',
+    '  }',
+    '  return acc;',
+    '}',
+    'mat2 whirl(float a) {',
+    '  float c = cos(a);',
+    '  float s = sin(a);',
+    '  return mat2(c, -s, s, c);',
+    '}',
+    'vec3 bbody(float k) {',
+    '  vec3 col = mix(vec3(0.45, 0.08, 0.02), vec3(1.0, 0.42, 0.12), smoothstep(0.0, 0.4, k));',
+    '  col = mix(col, vec3(1.0, 0.85, 0.62), smoothstep(0.4, 0.75, k));',
+    '  col = mix(col, vec3(0.85, 0.90, 1.0), smoothstep(0.75, 1.05, k));',
+    '  return col;',
+    '}',
+    'float diskGlow(vec3 hit, float rr) {',
+    '  float ang = atan(hit.z, hit.x);',
+    '  float omega = 6.0 / pow(rr, 1.5);',
+    '  float shear = ang + (fract(time / 36.0) - 0.5) * 36.0 * omega;',
+    '  float lr = log(rr);',
+    '  float lanes = noise(vec2(shear * 4.0, lr * 5.0)) * 0.65',
+    '    + noise(vec2(shear * 8.0 + 47.3, lr * 11.0 + 9.1)) * 0.35;',
+    '  float calm = smoothstep(DOUT * 0.9, DOUT * 0.4, rr);',
+    '  lanes = mix(0.5, lanes, 0.3 + 0.7 * calm);',
+    '  float fadeIn = smoothstep(DIN, DIN * 1.35, rr);',
+    '  float fadeOut = 1.0 - smoothstep(DOUT * 0.45, DOUT * 0.95, rr);',
+    '  return (0.35 + 0.9 * lanes) * fadeIn * fadeOut;',
+    '}',
+    'float stars(vec2 q, float cells, float cut) {',
+    '  vec2 cell = floor(q * cells);',
+    '  float seed = hash(cell);',
+    '  if (seed < cut) {',
+    '    return 0.0;',
+    '  }',
+    '  vec2 pos = fract(q * cells) - vec2(hash(cell + 7.3), hash(cell + 3.1));',
+    '  return exp(-dot(pos, pos) * 240.0);',
+    '}',
+    'void main() {',
+    '  vec2 sc = (gl_FragCoord.xy - res * 0.5) / min(res.x, res.y);',
+    '  sc = whirl(-0.22) * sc;',
+    '  float aim = length(sc);',
+    '  float yaw = 0.18 * sin(time * 0.021);',
+    '  float pitch = 0.30 + 0.05 * sin(time * 0.013 + 1.7);',
+    '  vec3 ro = vec3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * 24.0;',
+    '  vec3 fwd = normalize(-ro);',
+    '  vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), fwd));',
+    '  vec3 up = cross(fwd, right);',
+    '  vec3 rd = normalize(fwd * 1.5 + right * sc.x + up * sc.y);',
+    '  vec3 p = ro;',
+    '  vec3 v = rd;',
+    '  vec3 h = cross(p, v);',
+    '  float h2 = dot(h, h);',
+    '  vec3 acc = vec3(0.0);',
+    '  float trans = 1.0;',
+    '  float captured = 0.0;',
+    '  int hits = 0;',
+    '  for (int i = 0; i < 100; i++) {',
+    '    float r2 = dot(p, p);',
+    '    if (r2 < 1.0) {',
+    '      captured = 1.0;',
+    '      break;',
+    '    }',
+    '    if (r2 > 1600.0) {',
+    '      break;',
+    '    }',
+    '    float r = sqrt(r2);',
+    '    float dt = clamp(0.045 * r, 0.03, 0.6);',
+    '    dt = min(dt, abs(p.y) * 0.9 + 0.05);',
+    '    vec3 pull = -1.5 * h2 * p / (r2 * r2 * r);',
+    '    vec3 pPrev = p;',
+    '    v += pull * dt;',
+    '    p += v * dt;',
+    '    if (pPrev.y * p.y < 0.0 && hits < 3) {',
+    '      float f = pPrev.y / (pPrev.y - p.y);',
+    '      vec3 hit = mix(pPrev, p, f);',
+    '      float rr = length(hit.xz);',
+    '      if (rr > DIN && rr < DOUT) {',
+    '        bool secondary = hits > 0;',
+    '        if (!secondary || rr < DOUT * 0.75) {',
+    '          float glow = diskGlow(hit, rr);',
+    '          float temp = pow(DIN / rr, 0.75);',
+    '          vec3 tint = bbody(temp);',
+    '          vec3 tangent = normalize(vec3(-hit.z, 0.0, hit.x));',
+    '          float beta = min(sqrt(0.5 / rr), 0.7);',
+    '          float dop = 1.0 / max(1.0 - beta * dot(tangent, normalize(v)), 0.35);',
+    '          float beam = clamp(dop * dop * dop, 0.15, 3.2);',
+    '          float gred = sqrt(max(1.0 - 1.0 / rr, 0.0));',
+    '          float w = secondary ? 0.42 : 1.0;',
+    '          acc += tint * glow * beam * gred * 1.6 * trans * w;',
+    '          trans *= mix(1.0, 0.55, clamp(glow, 0.0, 1.0));',
+    '        }',
+    '      }',
+    '      hits++;',
+    '    }',
+    '  }',
+    '  vec3 col = acc;',
+    '  if (captured < 0.5) {',
+    '    vec3 dome = normalize(v);',
+    '    vec2 sky = vec2(atan(dome.x, dome.z), dome.y);',
+    '    vec3 neb = vec3(0.35, 0.25, 0.55) * fbm(sky * 2.6)',
+    '      + vec3(0.15, 0.22, 0.45) * fbm(sky * 1.3);',
+    '    float glint = stars(sky, 46.0, 0.993) + stars(sky + 31.7, 130.0, 0.996) * 0.7;',
+    '    float skyReach = 1.0 - smoothstep(0.18, 0.46, aim);',
+    '    col += (neb * 0.4 + vec3(0.9, 0.93, 1.0) * glint * 0.8) * skyReach * trans;',
+    '  }',
+    '  col = 1.0 - exp(-col);',
+    '  float lum = dot(col, vec3(0.299, 0.587, 0.114));',
+    '  float vin = 1.0 - smoothstep(0.34, 0.5, aim);',
+    '  float alpha = clamp(lum * 1.7 + captured * 0.9, 0.0, 1.0) * vin;',
+    '  gl_FragColor = vec4(col, alpha);',
+    '}',
+  ].join('\n');
+
+  var cv = document.getElementById('hole');
+  var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  var size = Math.round(280 * dpr);
+  cv.width = size;
+  cv.height = size;
+
+  var gl = cv.getContext('webgl', {
+    alpha: true,
+    premultipliedAlpha: false,
+    antialias: false,
+    depth: false,
+    stencil: false,
+  });
+
+  if (!gl) {
+    cv.style.background = 'radial-gradient(circle at 50% 48%, rgba(255,150,70,0.22), rgba(120,90,255,0.08) 40%, transparent 62%)';
+    return;
+  }
+
+  function make(kind, src) {
+    var sh = gl.createShader(kind);
+    if (!sh) return null;
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      gl.deleteShader(sh);
+      return null;
+    }
+    return sh;
+  }
+
+  var vs = make(gl.VERTEX_SHADER, vertSrc);
+  var fs = make(gl.FRAGMENT_SHADER, fragSrc);
+  if (!vs || !fs) return;
+
+  var prog = gl.createProgram();
+  if (!prog) return;
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+  gl.useProgram(prog);
+
+  var mesh = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  var slot = gl.getAttribLocation(prog, 'spot');
+  gl.enableVertexAttribArray(slot);
+  gl.vertexAttribPointer(slot, 2, gl.FLOAT, false, 0, 0);
+  gl.viewport(0, 0, size, size);
+
+  var uRes = gl.getUniformLocation(prog, 'res');
+  var uTime = gl.getUniformLocation(prog, 'time');
+  gl.uniform2f(uRes, size, size);
+  gl.clearColor(0, 0, 0, 0);
+
+  var born = performance.now();
+  var raf = 0;
+
+  function frame(now) {
+    gl.uniform1f(uTime, 12.0 + (now - born) / 1000.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    raf = requestAnimationFrame(frame);
+  }
+
+  raf = requestAnimationFrame(frame);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      cancelAnimationFrame(raf);
+    } else {
+      born = performance.now() - 12000;
+      raf = requestAnimationFrame(frame);
+    }
+  });
+
+  window.addEventListener('beforeunload', function () {
+    cancelAnimationFrame(raf);
+    var plug = gl.getExtension('WEBGL_lose_context');
+    if (plug) plug.loseContext();
+  });
+})();
+</script>
+</body>
+</html>
