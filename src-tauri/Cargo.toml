@@ -1,0 +1,59 @@
+[package]
+name = "wawity"
+version = "0.1.0"
+description = "Wawity VPN Client"
+authors = ["Wawity Team"]
+edition = "2021"
+
+[[bin]]
+name = "wawity-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.8", features = [
+    "api-all",
+    "process-command-api",
+    "system-tray"
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+base64 = "0.21"
+url = "2.4"
+tokio = { version = "1.0", features = ["full"] }
+log = "0.4"
+discord-rich-presence = "0.2"
+env_logger = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.11", features = ["blocking", "gzip", "deflate", "brotli", "json"] }
+which = "6.0"
+urlencoding = "2.1"
+zeroize = { version = "1.7", features = ["derive"] }
+once_cell = "1.19"
+wawity-core = { path = "../crates/wawity-core" }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_Console",
+    "Win32_System_Threading",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_WindowsFirewall",
+    "Win32_NetworkManagement_Dns",
+    "Win32_System_Com",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Networking_WinSock",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_Shell",
+    "Win32_Storage_FileSystem"
+] }
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
