@@ -1,0 +1,20 @@
+[package]
+name = "wawity-cli"
+version = "0.1.0"
+description = "Wawity VPN command-line client and interactive console"
+edition = "2021"
+
+[[bin]]
+name = "wawity"
+path = "src/main.rs"
+
+[dependencies]
+wawity-core = { path = "../wawity-core" }
+clap = { version = "4.5", features = ["derive"] }
+ratatui = "0.26"
+crossterm = "0.27"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ctrlc = "3.4"
+log = "0.4"
+chrono = "0.4"
