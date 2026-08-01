@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+
+  .shell {
+    width: 100%;
+    height: 100%;
+    background: #050507;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .titlebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 44px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 10px 10px 0 0;
+    z-index: 10;
+  }
+
+  .tb-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .tb-btn:hover { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.85); }
+  .tb-btn.close:hover { background: rgba(255, 70, 70, 0.18); color: #ff8a8a; }
+
+  #hole {
+    width: 230px;
+    height: 230px;
+    margin-top: 26px;
+    flex-shrink: 0;
+    opacity: 0;
+    animation: appear 1.6s ease 150ms forwards;
+  }
+
+  .wm {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    margin-top: 0;
+    opacity: 0;
+    animation: appear 1s ease 700ms forwards;
+  }
+
+  .stage {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 22px 40px 0;
+    opacity: 0;
+    animation: appear 900ms ease 1.05s forwards;
+  }
+
+  .screen { width: 100%; display: flex; flex-direction: column; align-items: center; }
+  .hidden { display: none; }
+
+  .label {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: rgba(255, 255, 255, 0.35);
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    align-self: flex-start;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+
+  .desc {
+    align-self: flex-start;
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.55;
+    margin-bottom: 12px;
+  }
+
+  .pathrow {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    margin-bottom: 18px;
+  }
+
+  .path {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.5;
+  }
+
+  .ghost {
+    padding: 0 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .ghost:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+
+  .opt {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 11px 14px;
+    margin-bottom: 9px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.03);
+    transition: border-color 150ms ease, background 150ms ease;
+  }
+
+  .opt:hover { border-color: rgba(255, 255, 255, 0.3); }
+  .opt.sel { border-color: #fff; background: rgba(255, 255, 255, 0.07); }
+
+  .opt-t {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+
+  .opt-d {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.5;
+  }
+
+  .tag {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(120, 220, 160, 0.15);
+    border: 1px solid rgba(120, 220, 160, 0.35);
+    color: #8fe6b0;
+  }
+
+  .warn {
+    align-self: flex-start;
+    font-size: 11px;
+    color: #ffb0b0;
+    line-height: 1.5;
+    margin: 2px 0 10px;
+  }
+
+  .check {
+    align-self: flex-start;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    margin-bottom: 14px;
+  }
+
+  .check input { display: none; }
+
+  .box {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 5px;
+    position: relative;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+
+  .check input:checked + .box { background: #fff; border-color: #fff; }
+
+  .check input:checked + .box::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+    border: solid #050507;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .cta {
+    width: 100%;
+    padding: 13px 0;
+    border: none;
+    border-radius: 12px;
+    background: #fff;
+    color: #050507;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+  }
+
+  .cta:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(255, 255, 255, 0.14); }
+  .cta:active { transform: translateY(0); }
+
+  .cta.danger {
+    background: #e5484d;
+    color: #fff;
+  }
+
+  .cta.danger:hover { box-shadow: 0 8px 28px rgba(229, 72, 77, 0.35); }
+
+  .phase {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.55);
+    margin: 14px 0 14px;
+    min-height: 16px;
+  }
+
+  .bar {
+    width: 100%;
+    height: 3px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .fill {
+    width: 0%;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #cdd3ff, #ffffff);
+    transition: width 300ms ease;
+  }
+
+  .pct {
+    margin-top: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .done-t {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 10px 0 22px;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .done-note {
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.45);
+    text-align: center;
+  }
+
+  .quit-link {
+    margin-top: 14px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 150ms ease;
+  }
+
+  .quit-link:hover { color: rgba(255, 255, 255, 0.8); }
+
+  .fail-t {
+    font-size: 13px;
+    color: #ff8a8a;
+    text-align: center;
+    line-height: 1.6;
+    margin: 6px 0 18px;
+    word-break: break-word;
+  }
+
+  .ver {
+    position: absolute;
+    bottom: 14px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.22);
+  }
+
+  .tag.cli {
+    background: rgba(120, 170, 255, 0.15);
+    border: 1px solid rgba(120, 170, 255, 0.4);
+    color: #9cc2ff;
+  }
+
+  .note {
+    width: 100%;
+    border: 1px solid rgba(120, 170, 255, 0.25);
+    border-radius: 12px;
+    background: rgba(120, 170, 255, 0.07);
+    padding: 11px 14px;
+    margin-bottom: 14px;
+  }
+
+  .note-t {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .note-d {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.55;
+  }
+
+  .note-d b { color: rgba(255, 255, 255, 0.85); font-weight: 600; }
+
+  @keyframes appear { to { opacity: 1; } }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="titlebar" id="drag">
+      <button class="tb-btn" id="min" tabindex="-1">&#8211;</button>
+      <button class="tb-btn close" id="close" tabindex="-1">&#10005;</button>
+    </div>
+    <canvas id="hole"></canvas>
+    <div class="wm">wawity</div>
+    <div class="stage">
+      <div class="screen hidden" id="s-mode">
+        <div class="subtitle" id="mode-title"></div>
+        <div class="desc" id="mode-desc"></div>
+        <div class="opt sel" id="opt-keep">
+          <div class="opt-t">Сохранить мои данные <span class="tag">РЕКОМЕНДУЕТСЯ</span></div>
+          <div class="opt-d">Настройки, серверы и подписки останутся на месте.</div>
+        </div>
+        <div class="opt" id="opt-clean">
+          <div class="opt-t">Чистая установка</div>
+          <div class="opt-d">Настройки, серверы и подписки будут удалены. Мастер первичной настройки запустится заново.</div>
+        </div>
+        <div class="warn hidden" id="clean-warn">Данные будут удалены безвозвратно.</div>
+        <button class="cta" id="mode-next">Продолжить</button>
+      </div>
+      <div class="screen hidden" id="s-comp">
+        <div class="subtitle">Что установить?</div>
+        <div class="desc">В этом установщике две версии Wawity — выберите компоненты.</div>
+        <div class="opt" id="comp-desktop">
+          <div class="opt-t">Обычная версия (GUI)</div>
+          <div class="opt-d">Привычное приложение с графическим интерфейсом.</div>
+        </div>
+        <div class="opt" id="comp-cli">
+          <div class="opt-t">CLI-версия <span class="tag cli">ТЕРМИНАЛ</span></div>
+          <div class="opt-d">Команда wawity в терминале и интерактивная консоль. Для слабых ПК, серверов и автоматизации.</div>
+        </div>
+        <div class="opt sel" id="comp-both">
+          <div class="opt-t">Обе версии <span class="tag">РЕКОМЕНДУЕТСЯ</span></div>
+          <div class="opt-d">Приложение и команда wawity: общие ядро защиты и sing-box, ставятся в одну папку.</div>
+        </div>
+        <button class="cta" id="comp-next">Продолжить</button>
+      </div>
+      <div class="screen hidden" id="s-setup">
+        <div class="note hidden" id="cli-note">
+          <div class="note-t"><span class="tag cli">CLI-ВЕРСИЯ</span><span id="cli-note-title"></span></div>
+          <div class="note-d" id="cli-note-text"></div>
+        </div>
+        <div class="label">ПУТЬ УСТАНОВКИ</div>
+        <div class="pathrow">
+          <div class="path" id="path"></div>
+          <button class="ghost" id="browse">Обзор</button>
+        </div>
+        <label class="check" id="desktop-row">
+          <input type="checkbox" id="desktop" checked />
+          <span class="box"></span>
+          <span>Ярлык на рабочем столе</span>
+        </label>
+        <button class="cta" id="go">Установить</button>
+      </div>
+      <div class="screen hidden" id="s-un">
+        <div class="subtitle">Удаление Wawity</div>
+        <div class="desc">Приложение, команда wawity (включая запись в PATH), правила брандмауэра, ярлыки и записи в системе будут удалены с этого компьютера.</div>
+        <label class="check">
+          <input type="checkbox" id="purge" />
+          <span class="box"></span>
+          <span>Удалить все данные: настройки, серверы, подписки и прогресс первичной настройки</span>
+        </label>
+        <div class="desc" id="purge-hint">Если оставить данные, при переустановке они подхватятся автоматически.</div>
+        <button class="cta danger" id="ungo">Удалить Wawity</button>
+        <button class="quit-link" id="uncancel">Отмена</button>
+      </div>
+      <div class="screen hidden" id="s-progress">
+        <div class="phase" id="phase">Подготовка</div>
+        <div class="bar"><div class="fill" id="fill"></div></div>
+        <div class="pct" id="pct">0%</div>
+      </div>
+      <div class="screen hidden" id="s-done">
+        <div class="done-t">Установка завершена</div>
+        <div class="done-note hidden" id="done-cli-note" style="margin: -8px 0 18px;"></div>
+        <button class="cta" id="launch">Запустить</button>
+        <button class="quit-link" id="quit">Закрыть</button>
+      </div>
+      <div class="screen hidden" id="s-undone">
+        <div class="done-t">Wawity удалён</div>
+        <div class="done-note">Окно закроется автоматически.</div>
+      </div>
+      <div class="screen hidden" id="s-fail">
+        <div class="fail-t" id="failmsg"></div>
+        <button class="ghost" id="retry">Попробовать снова</button>
+        <button class="quit-link" id="quit2">Закрыть</button>
+      </div>
+    </div>
+    <div class="ver" id="ver"></div>
+  </div>
+<script>
+var post = function (m) {
+  if (window.ipc && window.ipc.postMessage) {
+    window.ipc.postMessage(JSON.stringify(m));
+  }
+};
+
+var boot = window.__boot || {
+  mode: 'install',
+  dir: 'C:\\Program Files\\Wawity',
+  version: '0.1.0',
+  installed: false,
+  dataPresent: false,
+};
+
+var state = {
+  mode: boot.mode || 'install',
+  dir: boot.dir,
+  keep: true,
+  busy: false,
+  variant: boot.variant || 'desktop',
+  components: boot.variant === 'cli' ? 'cli' : (boot.variant === 'full' ? 'both' : 'desktop'),
+};
+
+var el = function (id) { return document.getElementById(id); };
+
+el('path').textContent = state.dir;
+el('path').title = state.dir;
+el('ver').textContent = 'v' + boot.version;
+
+function show(name) {
+  ['s-mode', 's-comp', 's-setup', 's-un', 's-progress', 's-done', 's-undone', 's-fail'].forEach(function (id) {
+    el(id).classList.toggle('hidden', id !== name);
+  });
+}
+
+function showInstallEntry() {
+  if (state.variant === 'full') {
+    show('s-comp');
+  } else {
+    show('s-setup');
+  }
+}
+
+function applyComponents() {
+  var c = state.components;
+  var cliOnly = c === 'cli';
+  var hasCli = c !== 'desktop';
+  el('cli-note').classList.toggle('hidden', !hasCli);
+  el('desktop-row').classList.toggle('hidden', cliOnly);
+  if (cliOnly) {
+    el('cli-note-title').textContent = 'Это не обычная версия Wawity';
+    el('cli-note-text').innerHTML = 'Консольный клиент без графического интерфейса: команда <b>wawity</b> в терминале и интерактивная консоль. То же ядро, тот же kill-switch, multi-hop и защита DNS — но в разы легче. Идеально для слабых ПК, серверов и автоматизации. После установки просто введите <b>wawity</b> в терминале.';
+  } else if (hasCli) {
+    el('cli-note-title').textContent = 'Вместе с приложением установится CLI';
+    el('cli-note-text').innerHTML = 'Команда <b>wawity</b> станет доступна в терминале: подключение, статус и смена серверов без открытия приложения.';
+  }
+}
+
+function selectComp(c) {
+  state.components = c;
+  el('comp-desktop').classList.toggle('sel', c === 'desktop');
+  el('comp-cli').classList.toggle('sel', c === 'cli');
+  el('comp-both').classList.toggle('sel', c === 'both');
+  applyComponents();
+}
+
+function selectKeep(keep) {
+  state.keep = keep;
+  el('opt-keep').classList.toggle('sel', keep);
+  el('opt-clean').classList.toggle('sel', !keep);
+  el('clean-warn').classList.toggle('hidden', keep);
+}
+
+if (state.mode === 'uninstall') {
+  show('s-un');
+} else if (boot.installed || boot.dataPresent) {
+  el('mode-title').textContent = boot.installed
+    ? 'Wawity уже установлен'
+    : 'Найдены данные прошлой установки';
+  el('mode-desc').textContent = boot.installed
+    ? 'Выберите, как продолжить установку.'
+    : 'На компьютере остались настройки, серверы и подписки от прошлой установки.';
+  show('s-mode');
+} else {
+  showInstallEntry();
+}
+
+applyComponents();
+if (state.variant === 'cli') {
+  document.querySelector('.wm').textContent = 'wawity cli';
+}
+
+window.setDir = function (dir) {
+  state.dir = dir;
+  el('path').textContent = dir;
+  el('path').title = dir;
+};
+
+window.setProgress = function (p, label) {
+  var pct = Math.max(0, Math.min(100, Math.round(p * 100)));
+  el('fill').style.width = pct + '%';
+  el('pct').textContent = pct + '%';
+  el('phase').textContent = label;
+};
+
+window.installDone = function (dir) {
+  state.dir = dir;
+  state.busy = false;
+  if (state.components === 'cli') {
+    el('launch').textContent = 'Открыть консоль';
+    el('done-cli-note').textContent = 'Команда wawity добавлена в PATH. Уже открытые терминалы нужно перезапустить.';
+    el('done-cli-note').classList.remove('hidden');
+  } else if (state.components === 'both') {
+    el('done-cli-note').textContent = 'Также установлен Wawity CLI: команда wawity доступна в новых окнах терминала.';
+    el('done-cli-note').classList.remove('hidden');
+  }
+  show('s-done');
+};
+
+window.installFailed = function (msg) {
+  state.busy = false;
+  el('failmsg').textContent = msg;
+  show('s-fail');
+};
+
+window.uninstallDone = function () {
+  state.busy = false;
+  window.setProgress(1, 'Готово');
+  show('s-undone');
+  window.setTimeout(function () { post({ cmd: 'close' }); }, 2500);
+};
+
+window.uninstallFailed = function (msg) {
+  state.busy = false;
+  el('failmsg').textContent = msg;
+  show('s-fail');
+};
+
+el('drag').addEventListener('mousedown', function (e) {
+  if (e.button === 0 && e.target === el('drag')) {
+    post({ cmd: 'drag' });
+  }
+});
+
+el('min').addEventListener('click', function () { post({ cmd: 'minimize' }); });
+el('close').addEventListener('click', function () { post({ cmd: 'close' }); });
+el('browse').addEventListener('click', function () { post({ cmd: 'browse' }); });
+
+el('opt-keep').addEventListener('click', function () { selectKeep(true); });
+el('opt-clean').addEventListener('click', function () { selectKeep(false); });
+el('mode-next').addEventListener('click', function () { showInstallEntry(); });
+el('comp-desktop').addEventListener('click', function () { selectComp('desktop'); });
+el('comp-cli').addEventListener('click', function () { selectComp('cli'); });
+el('comp-both').addEventListener('click', function () { selectComp('both'); });
+el('comp-next').addEventListener('click', function () { show('s-setup'); });
+
+el('go').addEventListener('click', function () {
+  if (state.busy) return;
+  state.busy = true;
+  show('s-progress');
+  window.setProgress(0.01, 'Подготовка');
+  post({ cmd: 'install', dir: state.dir, desktop: state.components !== 'cli' && el('desktop').checked, keep: state.keep, components: state.components });
+});
+
+el('ungo').addEventListener('click', function () {
+  if (state.busy) return;
+  state.busy = true;
+  show('s-progress');
+  window.setProgress(0.05, 'Удаление');
+  post({ cmd: 'uninstall', purge: el('purge').checked });
+});
+
+el('uncancel').addEventListener('click', function () { post({ cmd: 'close' }); });
+
+el('retry').addEventListener('click', function () {
+  show(state.mode === 'uninstall' ? 's-un' : 's-setup');
+});
+
+el('launch').addEventListener('click', function () { post({ cmd: 'launch', dir: state.dir, cli: state.components === 'cli' }); });
+el('quit').addEventListener('click', function () { post({ cmd: 'close' }); });
+el('quit2').addEventListener('click', function () { post({ cmd: 'close' }); });
+
+(function () {
+  var vertSrc = 'attribute vec2 spot;\nvoid main() {\n  gl_Position = vec4(spot, 0.0, 1.0);\n}';
+
+  var fragSrc = [
+    'precision highp float;',
+    'uniform vec2 res;',
+    'uniform float time;',
+    'const float DIN = 2.6;',
+    'const float DOUT = 9.5;',
+    'float hash(vec2 s) {',
+    '  return fract(sin(dot(s, vec2(127.1, 311.7))) * 43758.5453123);',
+    '}',
+    'float noise(vec2 s) {',
+    '  vec2 i = floor(s);',
+    '  vec2 f = fract(s);',
+    '  vec2 u = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash(i);',
+    '  float b = hash(i + vec2(1.0, 0.0));',
+    '  float c = hash(i + vec2(0.0, 1.0));',
+    '  float d = hash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);',
+    '}',
+    'float fbm(vec2 s) {',
+    '  float acc = 0.0;',
+    '  float amp = 0.5;',
+    '  for (int i = 0; i < 4; i++) {',
+    '    acc += amp * noise(s);',
+    '    s = s * 2.03 + vec2(19.7, 7.3);',
+    '    amp *= 0.5;',
+    '  }',
+    '  return acc;',
+    '}',
+    'mat2 whirl(float a) {',
+    '  float c = cos(a);',
+    '  float s = sin(a);',
+    '  return mat2(c, -s, s, c);',
+    '}',
+    'vec3 bbody(float k) {',
+    '  vec3 col = mix(vec3(0.45, 0.08, 0.02), vec3(1.0, 0.42, 0.12), smoothstep(0.0, 0.4, k));',
+    '  col = mix(col, vec3(1.0, 0.85, 0.62), smoothstep(0.4, 0.75, k));',
+    '  col = mix(col, vec3(0.85, 0.90, 1.0), smoothstep(0.75, 1.05, k));',
+    '  return col;',
+    '}',
+    'float diskGlow(vec3 hit, float rr) {',
+    '  float ang = atan(hit.z, hit.x);',
+    '  float omega = 6.0 / pow(rr, 1.5);',
+    '  float shear = ang + (fract(time / 36.0) - 0.5) * 36.0 * omega;',
+    '  float lr = log(rr);',
+    '  float lanes = noise(vec2(shear * 4.0, lr * 5.0)) * 0.65',
+    '    + noise(vec2(shear * 8.0 + 47.3, lr * 11.0 + 9.1)) * 0.35;',
+    '  float calm = smoothstep(DOUT * 0.9, DOUT * 0.4, rr);',
+    '  lanes = mix(0.5, lanes, 0.3 + 0.7 * calm);',
+    '  float fadeIn = smoothstep(DIN, DIN * 1.35, rr);',
+    '  float fadeOut = 1.0 - smoothstep(DOUT * 0.45, DOUT * 0.95, rr);',
+    '  return (0.35 + 0.9 * lanes) * fadeIn * fadeOut;',
+    '}',
+    'float stars(vec2 q, float cells, float cut) {',
+    '  vec2 cell = floor(q * cells);',
+    '  float seed = hash(cell);',
+    '  if (seed < cut) {',
+    '    return 0.0;',
+    '  }',
+    '  vec2 pos = fract(q * cells) - vec2(hash(cell + 7.3), hash(cell + 3.1));',
+    '  return exp(-dot(pos, pos) * 240.0);',
+    '}',
+    'void main() {',
+    '  vec2 sc = (gl_FragCoord.xy - res * 0.5) / min(res.x, res.y);',
+    '  sc = whirl(-0.22) * sc;',
+    '  float aim = length(sc);',
+    '  float yaw = 0.18 * sin(time * 0.021);',
+    '  float pitch = 0.30 + 0.05 * sin(time * 0.013 + 1.7);',
+    '  vec3 ro = vec3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * 24.0;',
+    '  vec3 fwd = normalize(-ro);',
+    '  vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), fwd));',
+    '  vec3 up = cross(fwd, right);',
+    '  vec3 rd = normalize(fwd * 1.5 + right * sc.x + up * sc.y);',
+    '  vec3 p = ro;',
+    '  vec3 v = rd;',
+    '  vec3 h = cross(p, v);',
+    '  float h2 = dot(h, h);',
+    '  vec3 acc = vec3(0.0);',
+    '  float trans = 1.0;',
+    '  float captured = 0.0;',
+    '  int hits = 0;',
+    '  for (int i = 0; i < 100; i++) {',
+    '    float r2 = dot(p, p);',
+    '    if (r2 < 1.0) {',
+    '      captured = 1.0;',
+    '      break;',
+    '    }',
+    '    if (r2 > 1600.0) {',
+    '      break;',
+    '    }',
+    '    float r = sqrt(r2);',
+    '    float dt = clamp(0.045 * r, 0.03, 0.6);',
+    '    dt = min(dt, abs(p.y) * 0.9 + 0.05);',
+    '    vec3 pull = -1.5 * h2 * p / (r2 * r2 * r);',
+    '    vec3 pPrev = p;',
+    '    v += pull * dt;',
+    '    p += v * dt;',
+    '    if (pPrev.y * p.y < 0.0 && hits < 3) {',
+    '      float f = pPrev.y / (pPrev.y - p.y);',
+    '      vec3 hit = mix(pPrev, p, f);',
+    '      float rr = length(hit.xz);',
+    '      if (rr > DIN && rr < DOUT) {',
+    '        bool secondary = hits > 0;',
+    '        if (!secondary || rr < DOUT * 0.75) {',
+    '          float glow = diskGlow(hit, rr);',
+    '          float temp = pow(DIN / rr, 0.75);',
+    '          vec3 tint = bbody(temp);',
+    '          vec3 tangent = normalize(vec3(-hit.z, 0.0, hit.x));',
+    '          float beta = min(sqrt(0.5 / rr), 0.7);',
+    '          float dop = 1.0 / max(1.0 - beta * dot(tangent, normalize(v)), 0.35);',
+    '          float beam = clamp(dop * dop * dop, 0.15, 3.2);',
+    '          float gred = sqrt(max(1.0 - 1.0 / rr, 0.0));',
+    '          float w = secondary ? 0.42 : 1.0;',
+    '          acc += tint * glow * beam * gred * 1.6 * trans * w;',
+    '          trans *= mix(1.0, 0.55, clamp(glow, 0.0, 1.0));',
+    '        }',
+    '      }',
+    '      hits++;',
+    '    }',
+    '  }',
+    '  vec3 col = acc;',
+    '  if (captured < 0.5) {',
+    '    vec3 dome = normalize(v);',
+    '    vec2 sky = vec2(atan(dome.x, dome.z), dome.y);',
+    '    vec3 neb = vec3(0.35, 0.25, 0.55) * fbm(sky * 2.6)',
+    '      + vec3(0.15, 0.22, 0.45) * fbm(sky * 1.3);',
+    '    float glint = stars(sky, 46.0, 0.993) + stars(sky + 31.7, 130.0, 0.996) * 0.7;',
+    '    float skyReach = 1.0 - smoothstep(0.18, 0.46, aim);',
+    '    col += (neb * 0.4 + vec3(0.9, 0.93, 1.0) * glint * 0.8) * skyReach * trans;',
+    '  }',
+    '  col = 1.0 - exp(-col);',
+    '  float lum = dot(col, vec3(0.299, 0.587, 0.114));',
+    '  float vin = 1.0 - smoothstep(0.34, 0.5, aim);',
+    '  float alpha = clamp(lum * 1.7 + captured * 0.9, 0.0, 1.0) * vin;',
+    '  gl_FragColor = vec4(col, alpha);',
+    '}',
+  ].join('\n');
+
+  var cv = el('hole');
+  var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  var size = Math.round(230 * dpr);
+  cv.width = size;
+  cv.height = size;
+
+  var gl = cv.getContext('webgl', {
+    alpha: true,
+    premultipliedAlpha: false,
+    antialias: false,
+    depth: false,
+    stencil: false,
+  });
+
+  if (!gl) {
+    cv.style.background = 'radial-gradient(circle at 50% 48%, rgba(255,150,70,0.22), rgba(120,90,255,0.08) 40%, transparent 62%)';
+    return;
+  }
+
+  function make(kind, src) {
+    var sh = gl.createShader(kind);
+    if (!sh) return null;
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      gl.deleteShader(sh);
+      return null;
+    }
+    return sh;
+  }
+
+  var vs = make(gl.VERTEX_SHADER, vertSrc);
+  var fs = make(gl.FRAGMENT_SHADER, fragSrc);
+  if (!vs || !fs) return;
+
+  var prog = gl.createProgram();
+  if (!prog) return;
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+  gl.useProgram(prog);
+
+  var mesh = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  var slot = gl.getAttribLocation(prog, 'spot');
+  gl.enableVertexAttribArray(slot);
+  gl.vertexAttribPointer(slot, 2, gl.FLOAT, false, 0, 0);
+  gl.viewport(0, 0, size, size);
+
+  var uRes = gl.getUniformLocation(prog, 'res');
+  var uTime = gl.getUniformLocation(prog, 'time');
+  gl.uniform2f(uRes, size, size);
+  gl.clearColor(0, 0, 0, 0);
+
+  var born = performance.now();
+  var raf = 0;
+
+  function frame(now) {
+    gl.uniform1f(uTime, 12.0 + (now - born) / 1000.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    raf = requestAnimationFrame(frame);
+  }
+
+  raf = requestAnimationFrame(frame);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      cancelAnimationFrame(raf);
+    } else {
+      born = performance.now() - 12000;
+      raf = requestAnimationFrame(frame);
+    }
+  });
+})();
+</script>
+</body>
+</html>
