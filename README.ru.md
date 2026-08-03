@@ -115,7 +115,6 @@ wawity/
 ├── telemetry-relay/          опциональный релей телеметрии (Node.js)
 ├── build.bat                  интерактивное меню сборки
 ├── fix-cargo-mirror.bat        отключает глобальное зеркало реестра cargo
-├── init.ps1                     генерирует полный дамп исходников для ревью
 ├── package.json
 ├── Cargo.toml                  манифест workspace
 └── tsconfig*.json / vite.config.ts
@@ -168,8 +167,6 @@ target/release/wawity.exe
 - `src-tauri/rulesets/*.srs` — geosite-правила для блокировки рекламы/трекеров, уже включены.
 
 `build.bat` упаковывает всё это в `installer/payload/app.zip`, а затем собирает Cargo-проект `installer`, который создаёт `WawitySetup-Desktop.exe` / `WawitySetup-CLI.exe` в папке `dist-build\`.
-
-> `init.ps1` — вспомогательный скрипт для разработки: собирает всё дерево читаемых исходников (кроме `node_modules`, `target`, `dist` и т. п.) в один текстовый файл с таймстампом для ревью. На саму сборку он не влияет.
 
 ## Телеметрия
 
