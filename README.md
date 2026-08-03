@@ -115,7 +115,6 @@ wawity/
 ├── telemetry-relay/          optional telemetry relay (Node.js)
 ├── build.bat                  interactive build menu
 ├── fix-cargo-mirror.bat        disables a global cargo registry mirror
-├── init.ps1                     generates a full source dump for review
 ├── package.json
 ├── Cargo.toml                  workspace manifest
 └── tsconfig*.json / vite.config.ts
