@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div ref="pageRef" class="page">
     <div class="wordmark">
       <img :src="iconSrc" class="wm-logo" alt="Wawity" />
       <h1 class="wm-text">wawity</h1>
@@ -18,11 +18,15 @@
       <span v-if="vpnStore.loading" class="busy-arc" aria-hidden="true"></span>
       <span v-if="burst" class="burst-ring" aria-hidden="true"></span>
       <button
+        ref="powerBtnRef"
         type="button"
         class="power-btn"
         :class="{ 'power-btn--on': vpnStore.status.connected, 'connect-flash': flash }"
         :aria-pressed="vpnStore.status.connected"
         :disabled="vpnStore.loading"
+        @mouseenter="onPowerEnter"
+        @mouseleave="onPowerLeave"
+        @mousedown="pressPower"
         @click="toggle"
       >
         <Power :size="40" :class="{ 'icon-pulse': vpnStore.loading }" aria-hidden="true" />
@@ -39,7 +43,11 @@
       >
         <ShieldAlert :size="13" aria-hidden="true" />
         <span
-          v-text="vpnStore.settings.kill_switch ? t('connection.killSwitchOn') : t('connection.killSwitchOff')"
+          v-text="
+            vpnStore.settings.kill_switch
+              ? t('connection.killSwitchOn')
+              : t('connection.killSwitchOff')
+          "
         ></span>
       </button>
       <button
@@ -50,7 +58,9 @@
       >
         <Lock :size="13" aria-hidden="true" />
         <span
-          v-text="vpnStore.settings.always_on ? t('connection.alwaysOnOn') : t('connection.alwaysOnOff')"
+          v-text="
+            vpnStore.settings.always_on ? t('connection.alwaysOnOn') : t('connection.alwaysOnOff')
+          "
         ></span>
       </button>
       <button
@@ -61,32 +71,53 @@
       >
         <Shuffle :size="13" aria-hidden="true" />
         <span
-          v-text="vpnStore.settings.multihop_enabled ? t('connection.multihopOn') : t('connection.multihopOff')"
+          v-text="
+            vpnStore.settings.multihop_enabled
+              ? t('connection.multihopOn')
+              : t('connection.multihopOff')
+          "
         ></span>
       </button>
     </div>
 
     <p v-if="vpnStore.status.multihop" class="hop-route mono" v-text="hopRoute"></p>
 
-    <router-link to="/servers" class="server-pill">
-      <div class="pill-left">
-        <CountryFlag
-          :code="vpnStore.selectedServer?.countryCode ?? 'UN'"
-          :width="36"
-          :height="24"
-        />
-        <div class="pill-info">
-          <span class="pill-name" v-text="pillName"></span>
-          <span class="pill-sub mono" v-text="pillSub"></span>
+    <div class="server-card">
+      <router-link to="/servers" class="server-main">
+        <div class="pill-left">
+          <CountryFlag
+            :code="vpnStore.selectedServer?.countryCode ?? 'UN'"
+            :width="30"
+            :height="20"
+          />
+          <div class="pill-info">
+            <span class="pill-name" v-text="pillName"></span>
+            <span class="pill-sub mono" v-text="pillSub"></span>
+          </div>
         </div>
-      </div>
-      <ChevronRight :size="16" class="chevron" aria-hidden="true" />
-    </router-link>
+        <ChevronRight :size="15" class="chevron" aria-hidden="true" />
+      </router-link>
+      <button
+        ref="copyBtnRef"
+        type="button"
+        class="server-copy-btn"
+        :disabled="!vpnStore.selectedServer"
+        :title="t('connection.copyIpTitle')"
+        @click="copyServerAddress"
+      >
+        <Check v-if="serverCopied" :size="15" aria-hidden="true" />
+        <Copy v-else :size="15" aria-hidden="true" />
+      </button>
+    </div>
 
     <div class="stats-grid">
       <div class="stat-card">
         <Signal :size="15" class="stat-icon" :class="pingColorClass" aria-hidden="true" />
-        <span class="stat-value mono" :class="pingColorClass" v-text="vpnStore.currentPingDisplay"></span>
+        <span
+          class="stat-value mono"
+          :class="pingColorClass"
+          v-text="vpnStore.currentPingDisplay"
+        ></span>
         <span class="stat-label" v-text="t('connection.ping')"></span>
       </div>
       <div class="stat-card">
@@ -106,12 +137,35 @@
       </div>
     </div>
 
+    <div class="ip-pill" :class="vpnStore.status.connected ? 'ip-pill--secure' : 'ip-pill--exposed'">
+      <span class="ip-orb">
+        <Transition name="orb-swap" mode="out-in">
+          <ThinkingOrb
+            v-if="vpnStore.loading"
+            key="orb-loading"
+            :size="18"
+            state="connecting"
+          />
+          <ThinkingOrb
+            v-else-if="vpnStore.status.connected"
+            key="orb-on"
+            :size="18"
+            state="breathing"
+          />
+          <EyeOff v-else key="ico-off" :size="14" />
+        </Transition>
+      </span>
+      <Transition name="stage-swap" mode="out-in">
+        <span ref="ipPillTextRef" :key="ipPillLabel" class="ip-pill-text" v-text="ipPillLabel"></span>
+      </Transition>
+    </div>
+
     <p v-if="vpnStore.connectError" class="error-msg" v-text="vpnStore.connectError"></p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Power,
@@ -123,20 +177,123 @@ import {
   Shuffle,
   Signal,
   Lock,
-} from 'lucide-vue-next';
+  Activity,
+  Copy,
+  Check,
+  EyeOff,
+} from '../lib/appIcons';
 import { useVpnStore } from '../stores/vpn';
 import { useAppIcon } from '../composables/useAppIcon';
+import { writeText } from '@tauri-apps/api/clipboard';
+import { showCopyHint } from '../composables/useCopyHint';
 import { t } from '../i18n';
+import { gsap } from 'gsap';
+import { pressPop, isFancy, staggerChildren } from '../lib/motion';
 import CountryFlag from '../components/CountryFlag.vue';
-
+import ThinkingOrb from '../components/ThinkingOrb.vue';
+  
 const vpnStore = useVpnStore();
 const { iconSrc } = useAppIcon();
 const router = useRouter();
 
 const flash = ref(false);
+const powerBtnRef = ref<HTMLElement | null>(null);
+const pageRef = ref<HTMLElement | null>(null);
 const burst = ref(false);
 let flashTimer = 0;
 let burstTimer = 0;
+
+const CONNECT_STAGES = [
+  'connection.stageInit',
+  'connection.stageResolve',
+  'connection.stageHandshake',
+  'connection.stageRoute',
+  'connection.stageVerify',
+  'connection.stageAlmost',
+];
+const stageIdx = ref(0);
+let stageTimer = 0;
+
+onMounted(() => {
+  staggerChildren(pageRef.value, '.feature-pill, .stat-card', { per: 0.045 });
+});
+
+const stageLabel = computed(() => {
+  if (vpnStore.status.connected) return t('connection.stageDisconnecting');
+  const idx = Math.min(stageIdx.value, CONNECT_STAGES.length - 1);
+  return t(CONNECT_STAGES[idx]);
+});
+
+/* ---------- copy + ip status ---------- */
+
+const serverCopied = ref(false);
+const copyBtnRef = ref<HTMLElement | null>(null);
+const ipPillTextRef = ref<HTMLElement | null>(null);
+let serverCopyTimer = 0;
+
+const ipPillLabel = computed(() => {
+  if (vpnStore.loading) return stageLabel.value;
+  if (vpnStore.status.connected) return t('connection.ipHidden');
+  return t('connection.ipExposed');
+});
+
+/* smooth blur-swap of the pill text on every state change */
+watch(ipPillLabel, async () => {
+  await nextTick();
+  if (!isFancy()) return;
+  const el = ipPillTextRef.value;
+  if (!el) return;
+  gsap.fromTo(
+    el,
+    { filter: 'blur(6px)', opacity: 0.2, y: 3 },
+    { filter: 'blur(0px)', opacity: 1, y: 0, duration: 0.38, ease: 'expo.out', clearProps: 'filter' },
+  );
+});
+
+async function copyServerAddress() {
+  const server = vpnStore.selectedServer?.server;
+  if (!server) return;
+  try {
+    await writeText(server);
+    serverCopied.value = true;
+    showCopyHint(t('connection.ipCopied'));
+    pressPop(copyBtnRef.value);
+    if (serverCopyTimer) window.clearTimeout(serverCopyTimer);
+    serverCopyTimer = window.setTimeout(() => {
+      serverCopied.value = false;
+    }, 1600);
+  } catch {}
+}
+
+function startStages() {
+  stopStages();
+  stageIdx.value = 0;
+  stageTimer = window.setInterval(() => {
+    if (stageIdx.value < CONNECT_STAGES.length - 1) {
+      stageIdx.value += 1;
+    } else {
+      stopStages();
+    }
+  }, 950);
+}
+
+function stopStages() {
+  if (stageTimer) {
+    window.clearInterval(stageTimer);
+    stageTimer = 0;
+  }
+}
+
+watch(
+  () => vpnStore.loading,
+  (now) => {
+    if (now && !vpnStore.status.connected) {
+      startStages();
+    } else {
+      stopStages();
+    }
+  },
+);
 
 const powerLabel = computed(() => {
   if (vpnStore.status.connected) return t('connection.disconnect');
@@ -180,12 +337,49 @@ function celebrate() {
   window.clearTimeout(burstTimer);
   flash.value = true;
   burst.value = true;
+
+  /* GSAP: burst ring flies out with expo ease, button pops softly */
+  if (isFancy()) {
+    const btn = powerBtnRef.value;
+    if (btn) {
+      gsap.killTweensOf(btn);
+      gsap
+        .timeline()
+        .fromTo(
+          btn,
+          { scale: 1 },
+          { scale: 1.07, duration: 0.16, ease: 'power2.out' },
+        )
+        .to(btn, { scale: 1, duration: 0.6, ease: 'elastic.out(1, 0.45)' });
+    }
+  }
+
   flashTimer = window.setTimeout(() => {
     flash.value = false;
   }, 900);
   burstTimer = window.setTimeout(() => {
     burst.value = false;
   }, 750);
+}
+
+function onPowerEnter() {
+  if (!isFancy()) return;
+  const btn = powerBtnRef.value;
+  if (!btn) return;
+  gsap.killTweensOf(btn);
+  gsap.to(btn, { scale: 1.04, duration: 0.3, ease: 'power2.out' });
+}
+
+function onPowerLeave() {
+  if (!isFancy()) return;
+  const btn = powerBtnRef.value;
+  if (!btn) return;
+  gsap.killTweensOf(btn);
+  gsap.to(btn, { scale: 1, duration: 0.4, ease: 'power2.out' });
+}
+
+function pressPower() {
+  pressPop(powerBtnRef.value);
 }
 
 function goToSetting(key: string) {
@@ -198,16 +392,20 @@ async function toggle() {
     await vpnStore.disconnect();
     return;
   }
+  // explicit user action — allow gated connect()
+  vpnStore.clearDisconnectIntent();
   if (!vpnStore.selectedServerId) {
     vpnStore.connectError = t('connection.selectServerFirst');
     return;
   }
-  await vpnStore.connect();
+  await vpnStore.connectWithChain();
 }
 
 onUnmounted(() => {
   window.clearTimeout(flashTimer);
   window.clearTimeout(burstTimer);
+  window.clearTimeout(serverCopyTimer);
+  stopStages();
 });
 </script>
 
@@ -252,8 +450,8 @@ onUnmounted(() => {
   border-radius: 16px;
   border: 1px solid rgba(255, 90, 90, 0.28);
   background: linear-gradient(180deg, rgba(255, 70, 70, 0.14), rgba(255, 70, 70, 0.07));
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(11px);
+  -webkit-backdrop-filter: blur(11px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 8px 24px rgba(0, 0, 0, 0.35);
@@ -293,7 +491,7 @@ onUnmounted(() => {
   border-top-color: var(--primary);
   border-radius: 50%;
   pointer-events: none;
-  animation: arc-spin 900ms linear infinite;
+  animation: arc-spin 1500ms linear infinite;
 }
 
 .burst-ring {
@@ -316,9 +514,14 @@ onUnmounted(() => {
   gap: 8px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03) 45%, rgba(0, 0, 0, 0.12));
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.03) 45%,
+    rgba(0, 0, 0, 0.12)
+  );
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.22),
     inset 0 -14px 28px rgba(0, 0, 0, 0.22),
@@ -345,13 +548,14 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.power-btn:hover:not(:disabled) {
-  transform: scale(1.04);
-  color: rgba(255, 255, 255, 0.95);
+.power-btn > svg,
+.power-label {
+  position: relative;
+  z-index: 1;
 }
 
-.power-btn:active:not(:disabled) {
-  transform: scale(0.96);
+.power-btn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .power-btn:disabled {
@@ -400,8 +604,8 @@ onUnmounted(() => {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     0 4px 14px rgba(0, 0, 0, 0.25);
@@ -444,25 +648,26 @@ onUnmounted(() => {
   margin: 0;
 }
 
-.server-pill {
+.server-card {
   position: relative;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  max-width: 380px;
-  padding: 13px 16px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  background: linear-gradient(170deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03) 55%, rgba(0, 0, 0, 0.08));
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  align-items: stretch;
+  width: 316px;
+  height: 56px;
+  box-sizing: border-box;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    170deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.03) 55%,
+    rgba(0, 0, 0, 0.1)
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 12px 32px rgba(0, 0, 0, 0.38);
-  color: var(--foreground);
-  text-decoration: none;
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 26px rgba(0, 0, 0, 0.35);
   overflow: hidden;
   transition:
     border-color 250ms ease,
@@ -470,7 +675,7 @@ onUnmounted(() => {
     transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.server-pill::before {
+.server-card::before {
   content: '';
   position: absolute;
   top: 0;
@@ -481,7 +686,7 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.server-pill:hover {
+.server-card:hover {
   transform: translateY(-1px);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow:
@@ -489,8 +694,16 @@ onUnmounted(() => {
     0 16px 38px rgba(0, 0, 0, 0.45);
 }
 
-.server-pill:active {
-  transform: translateY(0) scale(0.99);
+.server-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+  padding: 0 11px 0 11px;
+  color: var(--foreground);
+  text-decoration: none;
 }
 
 .pill-left {
@@ -529,8 +742,48 @@ onUnmounted(() => {
   transition: transform 200ms ease;
 }
 
-.server-pill:hover .chevron {
+.server-main:hover .chevron {
   transform: translateX(3px);
+}
+
+.server-copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  flex-shrink: 0;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0.015)
+    );
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 200ms ease,
+    background 200ms ease,
+    border-color 250ms ease;
+}
+
+.server-copy-btn:hover:not(:disabled) {
+  color: #d9ccff;
+  background: rgba(167, 139, 250, 0.14);
+}
+
+.server-copy-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.server-copy-btn > svg {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.server-copy-btn:hover:not(:disabled) > svg {
+  transform: scale(1.12);
 }
 
 .stats-grid {
@@ -551,13 +804,15 @@ onUnmounted(() => {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(11px);
+  -webkit-backdrop-filter: blur(11px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 8px 22px rgba(0, 0, 0, 0.3);
   color: var(--muted-foreground);
-  transition: border-color 250ms ease, transform 180ms ease;
+  transition:
+    border-color 250ms ease,
+    transform 180ms ease;
 }
 
 .stat-card:hover {
@@ -667,9 +922,206 @@ onUnmounted(() => {
   }
 }
 
+/* ---------- ip status pill ---------- */
+
+.ip-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.09),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    border-color 400ms ease,
+    color 400ms ease,
+    box-shadow 500ms ease,
+    background 400ms ease;
+}
+
+.ip-orb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.ip-pill-text {
+  white-space: nowrap;
+  filter: blur(0);
+  transition: filter 300ms ease;
+}
+
+.ip-pill--exposed {
+  color: rgba(235, 238, 250, 0.55);
+}
+
+.ip-pill--secure {
+  color: var(--success);
+  border-color: color-mix(in oklab, var(--success) 40%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--success) 12%, transparent),
+    color-mix(in oklab, var(--success) 3%, transparent)
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    0 0 28px color-mix(in oklab, var(--success) 16%, transparent),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.orb-swap-enter-active,
+.orb-swap-leave-active {
+  transition:
+    opacity 180ms ease,
+    filter 220ms ease,
+    transform 200ms ease;
+}
+.orb-swap-enter-from {
+  opacity: 0;
+  transform: scale(0.5);
+  filter: blur(4px);
+}
+.orb-swap-leave-to {
+  opacity: 0;
+  transform: scale(1.4);
+  filter: blur(4px);
+}
+
 @media (max-width: 560px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+  padding: 10px 22px 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.status-track {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.stage-word {
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.t-shimmer {
+  position: relative;
+  display: inline-block;
+  color: #6e6e6e;
+}
+
+.t-shimmer::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    #ededed 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 400% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: t-shimmer 2000ms linear infinite;
+}
+
+@keyframes t-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+.stage-swap-enter-active,
+.stage-swap-leave-active {
+  transition:
+    transform 150ms ease-in-out,
+    filter 150ms ease-in-out,
+    opacity 150ms ease-in-out;
+}
+
+.stage-swap-enter-from {
+  transform: translateY(4px);
+  filter: blur(2px);
+  opacity: 0;
+}
+
+.stage-swap-leave-to {
+  transform: translateY(-4px);
+  filter: blur(2px);
+  opacity: 0;
+}
+
+.status-pill-enter-active {
+  transition:
+    opacity 260ms ease,
+    transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.status-pill-leave-active {
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.status-pill-enter-from {
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+}
+
+.status-pill-leave-to {
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-shimmer::before {
+    animation: none !important;
+  }
+  .status-pill-enter-active,
+  .status-pill-leave-active,
+  .stage-swap-enter-active,
+  .stage-swap-leave-active {
+    transition: none !important;
   }
 }
 </style>
