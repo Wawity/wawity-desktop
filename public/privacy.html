@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Политика приватности — wawity</title>
+<meta name="description" content="Политика приватности wawity: без аккаунтов и облака, всё локальное хранилище — точные пути файлов, сетевые запросы, опциональная статистика и как всё удалить.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="wawity.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=Inter:wght@400;500&family=Unbounded:wght@300;400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="home.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body class="page">
+
+<div class="grain" aria-hidden="true"></div>
+<div class="progress" id="progress"></div>
+
+<header class="site-header solid"><div class="wrap nav-row">
+  <a class="brand" href="index.html"><span class="logo-mark"><img src="wawity.ico" alt=""></span>wawity<i>.</i></a>
+  <nav class="nav-links">
+    <a href="docs.html">Документация</a>
+    <a href="terms.html">Условия</a>
+    <a class="on" href="privacy.html">Приватность</a>
+    <a href="index.html#faq">FAQ</a>
+  </nav>
+  <div class="nav-right">
+    <div class="split-btn">
+      <a class="sb-main" href="index.html#download">Скачать<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0-5-5m5 5 5-5"/></svg></a>
+      <a class="sb-side" href="https://t.me/wawityvpn" target="_blank" rel="noopener" aria-label="Telegram"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.94 4.3 18.7 19.4c-.24 1.07-.88 1.33-1.78.83l-4.92-3.63-2.37 2.29c-.27.26-.49.48-1 .48l.35-5.05 9.16-8.28c.4-.35-.09-.55-.62-.2L6.2 13.02 1.35 11.5c-1.05-.33-1.07-1.05.22-1.55L20.58 2.9c.88-.32 1.65.2 1.36 1.4z"/></svg></a>
+    </div>
+  </div>
+</div></header>
+
+<main class="page-shell">
+<div class="wrap">
+
+  <div class="page-hero">
+    <p class="crumbs">Legal / 02 <span class="sep">—</span> Правовые документы <span class="sep">·</span> редакция 24.07.2026</p>
+    <h1>Политика приватности</h1>
+    <p class="sub">У wawity нет сервера, куда могли бы уходить ваши данные. Ниже — точный список всего, что клиент пишет на диск и куда он вообще выходит в сеть.</p>
+    <div class="meta-row"><span>Клиент 0.2.0</span><span>Без аккаунтов и телеметрии</span><span>Документ 2 из 2</span></div>
+    <div class="tldr">
+      <div><b>/01</b><h4>Нет аккаунтов</h4><p>Регистрации нет вообще. Мы не знаем ни вашего имени, ни почты, ни факта установки.</p></div>
+      <div><b>/02</b><h4>Всё локально</h4><p>Подписки, настройки и логи лежат только на вашем диске, в обычных файлах.</p></div>
+      <div><b>/03</b><h4>Трафик не читается</h4><p>Клиент видит только счётчики байт на адаптере — ни истории, ни содержимого.</p></div>
+    </div>
+  </div>
+
+  <div class="doc-layout">
+    <aside class="side-nav">
+      <h5>Разделы</h5>
+      <ol>
+        <li><a href="#p1">01 — Коротко</a></li>
+        <li><a href="#p2">02 — Чего мы не делаем</a></li>
+        <li><a href="#p3">03 — Что хранится локально</a></li>
+        <li><a href="#p4">04 — Сетевые запросы</a></li>
+        <li><a href="#p5">05 — Анонимная статистика</a></li>
+        <li><a href="#p6">06 — Discord Rich Presence</a></li>
+        <li><a href="#p7">07 — Логи и диагностика</a></li>
+        <li><a href="#p8">08 — Ваш провайдер</a></li>
+        <li><a href="#p9">09 — Сайт проекта</a></li>
+        <li><a href="#p10">10 — Как всё удалить</a></li>
+        <li><a href="#p11">11 — Изменения политики</a></li>
+      </ol>
+      <div class="side-foot">Правила использования — в <a href="terms.html">условиях</a>. Технические подробности — в <a href="docs.html#files">документации</a>.</div>
+    </aside>
+
+    <div class="doc">
+      <section class="sec" id="p1">
+        <h2><span class="n">/01</span>Коротко</h2>
+        <p class="lead"><b>Мы не собираем ваши данные без спроса.</b> Аккаунтов и облака у проекта нет, а анонимная статистика по умолчанию выключена: клиент не отправляет ничего, пока вы сами не включите тумблер в настройках.</p>
+        <p>Всё, что нужно клиенту для работы — подписки, настройки, состояние соединения — хранится в обычных файлах на вашем компьютере. Их можно открыть блокнотом и удалить в любой момент.</p>
+        <p>Политика действует для всех трёх редакций: десктопной, CLI и серверной установки.</p>
+      </section>
+
+      <section class="sec" id="p2">
+        <h2><span class="n">/02</span>Чего мы не делаем</h2>
+        <ul class="list">
+          <li>Не требуем регистрации, почты или номера телефона.</li>
+          <li>Не ведём журналы посещённых сайтов, DNS-запросов и соединений.</li>
+          <li>Не собираем идентификаторы железа, MAC-адреса и отпечатки системы.</li>
+          <li>Не передаём ничего рекламным и аналитическим сетям.</li>
+          <li>Не видим вашу ссылку подписки — она уходит только к вашему же провайдеру.</li>
+          <li>Не читаем и не анализируем содержимое трафика внутри туннеля.</li>
+        </ul>
+        <div class="note ok">
+          <span class="tag">Почему этому можно верить</span>
+          <p>Клиент не скрывает сетевую активность: весь его трафик виден в любом сниффере, а файлы конфигурации — обычный JSON. Проверить утверждения выше можно самостоятельно.</p>
+        </div>
+      </section>
+
+      <section class="sec" id="p3">
+        <h2><span class="n">/03</span>Что хранится локально</h2>
+        <p>Всё нижеперечисленное лежит только на вашей машине и никуда не синхронизируется.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Что</th><th>Где</th></tr></thead>
+            <tbody>
+              <tr><td><b>Подписки и список серверов</b> (CLI)</td><td><code>%APPDATA%\Wawity\cli\subscriptions.json</code></td></tr>
+              <tr><td><b>Настройки</b> (CLI)</td><td><code>%APPDATA%\Wawity\cli\settings.json</code></td></tr>
+              <tr><td><b>Состояние фонового подключения</b></td><td><code>%APPDATA%\Wawity\cli\detached.json</code></td></tr>
+              <tr><td><b>Данные десктопной версии</b></td><td><code>%LOCALAPPDATA%\com.wawity.vpn</code></td></tr>
+              <tr><td><b>Лог работы ядра</b></td><td><code>%TEMP%\wawity.log</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>В этих файлах нет истории посещений и нет содержимого трафика — только ваши же настройки, адреса серверов из подписки и технические сообщения.</p>
+        <div class="note warn">
+          <span class="tag">Внимание</span>
+          <p>Файл подписок содержит вашу ссылку целиком. Не выкладывайте его в публичный доступ и не прикладывайте к багрепортам без маскирования.</p>
+        </div>
+      </section>
+
+      <section class="sec" id="p4">
+        <h2><span class="n">/04</span>Сетевые запросы</h2>
+        <p>Клиент выходит в сеть только тогда, когда вы его об этом попросили.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Куда</th><th>Когда</th><th>Что передаётся</th></tr></thead>
+            <tbody>
+              <tr><td>Сервер вашей подписки</td><td>При добавлении и обновлении списка серверов</td><td>Обычный HTTPS-запрос по вашей ссылке</td></tr>
+              <tr><td>VPN-серверы из подписки</td><td>При подключении и замере пинга</td><td>Сам туннель и проверка доступности</td></tr>
+              <tr><td>Bootstrap DNS</td><td>При старте соединения</td><td>Разрешение имён серверов до поднятия туннеля</td></tr>
+              <tr><td>Сервис геолокации</td><td>Только с включённой онлайн-геолокацией</td><td>IP-адреса серверов подписки ради флагов стран</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Выключите онлайн-геолокацию в настройках — и единственными адресами, куда обращается клиент, останутся адреса вашего же провайдера.</p>
+      </section>
+
+      <section class="sec" id="p5">
+        <h2><span class="n">/05</span>Анонимная статистика</h2>
+        <p>В настройках есть переключатель <b>«Анонимная статистика»</b> в группе «Приватность». По умолчанию он <b>выключен</b>, и мы не включаем его за вас ни при установке, ни при обновлении.</p>
+        <ul class="list">
+          <li>Если переключатель выключен — клиент не отправляет никаких статистических данных.</li>
+          <li>Если вы его включите — уходят только обезличенные технические события: версия клиента, ОС, случайный идентификатор сессии и код ошибки.</li>
+          <li>Вместе с ними — отчёты об ошибках интерфейса и падениях (текст ошибки и стек) через Sentry, чтобы мы могли чинить сбои. Содержимое трафика туда не попадает никогда.</li>
+          <li>Никогда не передаются: ссылка подписки, адреса серверов, имя пользователя, списки приложений и объёмы трафика. IP как поле не записывается — это стандартная техническая информация любого сетевого запроса.</li>
+          <li>Отключить можно в любой момент тем же переключателем — эффект мгновенный.</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="p6">
+        <h2><span class="n">/06</span>Discord Rich Presence</h2>
+        <p>Если вы включили интеграцию с Discord, клиент общается с локальным приложением Discord на вашем компьютере и показывает статус в вашем профиле.</p>
+        <ul class="list">
+          <li>Функция выключена по умолчанию.</li>
+          <li>Отдельно регулируется, показывать ли сервер и название подписки.</li>
+          <li>Клиент не получает доступ к вашему аккаунту Discord, переписке и серверам.</li>
+          <li>Дальнейшая судьба показанного статуса регулируется политикой Discord, а не нашей.</li>
+        </ul>
+        <div class="note warn">
+          <span class="tag">Учтите</span>
+          <p>С включённым показом сервера ваши друзья в Discord увидят, через какую страну вы сидите. Если это лишнее — оставьте только общий статус или выключите интеграцию.</p>
+        </div>
+      </section>
+
+      <section class="sec" id="p7">
+        <h2><span class="n">/07</span>Логи и диагностика</h2>
+        <p>Лог <code>%TEMP%\wawity.log</code> пишется только локально и никуда не отправляется автоматически. Он нужен, чтобы вы сами могли понять, почему соединение не поднялось.</p>
+        <ul class="list">
+          <li>В лог попадают события ядра, ошибки маршрутизации и адреса серверов, к которым шло подключение.</li>
+          <li>Перед тем как делиться логом, удалите из него ссылку подписки и адреса, если не хотите их раскрывать.</li>
+          <li>Файл можно удалить в любой момент — клиент создаст новый при следующем запуске.</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="p8">
+        <h2><span class="n">/08</span>Провайдер и третьи стороны</h2>
+        <p>wawity — это клиент, а не VPN-сервис. Серверы принадлежат тому, чью подписку вы добавили.</p>
+        <ul class="list">
+          <li>Ваш провайдер видит факт подключения, ваш IP и объём трафика. Что он с этим делает — описано в его собственной политике, а не в этой.</li>
+          <li>Клиент использует sing-box и другие открытые компоненты — они работают локально и не отправляют статистику авторам.</li>
+          <li>Сайты и сервисы, куда вы ходите через туннель, по-прежнему видят ваши cookie, аккаунты и отпечаток браузера. VPN меняет маршрут, а не вашу личность в сервисе.</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="p9">
+        <h2><span class="n">/09</span>Сайт проекта</h2>
+        <p>Этот сайт — статические страницы. Мы не ставим рекламных пикселей и не просим регистрацию, чтобы скачать клиент.</p>
+        <p>Хостинг и CDN могут вести стандартные технические журналы запросов (IP, время, User-Agent) — это обычная практика любого веб-сервера, мы их не анализируем и не связываем с установленными клиентами.</p>
+      </section>
+
+      <section class="sec" id="p10">
+        <h2><span class="n">/10</span>Как всё удалить</h2>
+        <p>У нас нет ваших данных, поэтому удаление — это просто уборка на вашей машине.</p>
+        <ol class="list">
+          <li>Отключите VPN и выключите блокировку Always-On.</li>
+          <li>Удалите клиент через «Приложения и возможности» или запустите установщик с ключом <code>-uninstall</code>.</li>
+          <li>Удалите папки <code>%APPDATA%\Wawity</code> и <code>%LOCALAPPDATA%\com.wawity.vpn</code>, а также файл <code>%TEMP%\wawity.log</code>.</li>
+          <li>Если остались следы в сети — выполните <code>wawity repair</code> или «Экстренное восстановление сети» до удаления.</li>
+        </ol>
+        <div class="note ok">
+          <span class="tag">После этого</span>
+          <p>На диске не остаётся ни подписок, ни настроек, ни правил брандмауэра с префиксом <code>WawityFW_</code>. Аккаунт удалять нечего — его никогда не было.</p>
+        </div>
+      </section>
+
+      <section class="sec" id="p11">
+        <h2><span class="n">/11</span>Изменения политики</h2>
+        <p>Если в клиенте появится функция, которая работает с данными иначе, эта страница будет обновлена до её выхода. Дата редакции всегда указана в шапке.</p>
+        <p>Если что-то в этом документе осталось непонятным — спросите напрямую, и мы дополним его конкретикой.</p>
+        <a class="tg" href="https://t.me/wawityvpn" target="_blank" rel="noopener"><span class="tg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 4.5 18.5 19l-5.2-3.8-2.6 2.6-.7-3.9L19.4 5 8.3 13.2l-4.9-1.7z"/></svg></span><span class="tg-txt"><b>Связаться в Telegram</b><span>t.me/wawityvpn</span></span><span class="tg-go">открыть →</span></a>
+      </section>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="sub-footer"><div class="wrap">
+<span>© 2026 wawity · собрано на rust × sing-box</span>
+<span><a href="index.html">главная</a> / <a href="docs.html">документация</a> / <a href="terms.html">условия</a> / <a href="privacy.html">приватность</a> / <a href="https://t.me/wawityvpn" target="_blank" rel="noopener">telegram</a></span>
+</div></footer>
+
+<script>
+(function(){
+  var bar = document.getElementById('progress');
+  var links = Array.prototype.slice.call(document.querySelectorAll('.side-nav a[href^="#"]'));
+  var secs = Array.prototype.slice.call(document.querySelectorAll('section.sec'));
+
+  function onScroll(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    var p = max > 0 ? h.scrollTop / max : 0;
+    if (bar) bar.style.transform = 'scaleX(' + p + ')';
+
+    var top = h.scrollTop + 130;
+    var current = null;
+    for (var i = 0; i < secs.length; i++){
+      if (secs[i].offsetTop <= top) current = secs[i].id;
+    }
+    for (var j = 0; j < links.length; j++){
+      var on = links[j].getAttribute('href') === '#' + current;
+      links[j].classList.toggle('active', on);
+    }
+  }
+
+  document.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  onScroll();
+})();
+</script>
+</body>
+</html>

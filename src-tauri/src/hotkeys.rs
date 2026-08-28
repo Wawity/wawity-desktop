@@ -85,7 +85,12 @@ fn trigger() {
     
     let app = APP_HANDLE.lock().unwrap().clone();
     if let Some(app) = app {
-        let _ = app.emit_all("wawity-hotkey-toggle", ());
+        let will_connect = {
+            let state = app.state::<crate::AppState>();
+            let running = state.process_manager.lock().unwrap().is_running();
+            !running
+        };
+        let _ = app.emit_all("wawity-hotkey-toggle", will_connect);
         crate::spawn_background_toggle(app, true);
     }
 }

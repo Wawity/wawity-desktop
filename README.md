@@ -1,4 +1,4 @@
-# Wawity VPN | wawity.lol
+# Wawity VPN
 
 **Wawity** is a Windows VPN client built on top of [sing-box](https://github.com/SagerNet/sing-box). It ships as a desktop GUI app (Tauri + Vue 3) and a companion CLI/TUI client, both powered by a shared Rust engine that handles protocol parsing, process supervision, and Windows Firewall–based traffic lockdown.
 
@@ -115,6 +115,7 @@ wawity/
 ├── telemetry-relay/          optional telemetry relay (Node.js)
 ├── build.bat                  interactive build menu
 ├── fix-cargo-mirror.bat        disables a global cargo registry mirror
+├── init.ps1                     generates a full source dump for review
 ├── package.json
 ├── Cargo.toml                  workspace manifest
 └── tsconfig*.json / vite.config.ts
@@ -167,6 +168,9 @@ The installer packaging step (`installer\`) expects these files to exist before 
 - `src-tauri/rulesets/*.srs` — geosite rules for ad/tracker blocking, already bundled.
 
 `build.bat` stages these into `installer/payload/app.zip` and then builds the `installer` Cargo project, which produces `WawitySetup-Desktop.exe` / `WawitySetup-CLI.exe` in `dist-build\`.
+
+> `init.ps1` is a development utility that dumps the entire readable source tree (excluding `node_modules`, `target`, `dist`, etc.) into a single timestamped `.txt` file for review — it has no effect on the actual build.
+
 ## Telemetry
 
 Wawity can optionally report anonymous usage events (connect/disconnect, errors) to help diagnose issues. This is a Settings toggle, off or on depending on your build defaults — check the **Settings** page in the app to confirm the current state. When enabled, events are sent to a self-hosted relay (`telemetry-relay/server.mjs`), which authenticates requests with an ingest key, rate-limits by IP, and periodically forwards a digest to a Telegram chat via a bot token. No telemetry code path runs unless the relay is deployed and configured by whoever builds/operates that instance.

@@ -4,7 +4,8 @@ export default { name: 'AnalysisView' };
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue';
-import { ArrowDown, ArrowUp, ShieldCheck, ShieldOff, Signal, Timer, HardDriveDownload, HardDriveUpload } from 'lucide-vue-next';
+import { ArrowDown, ArrowUp, ShieldCheck, ShieldOff, Signal, Timer, HardDriveDownload, HardDriveUpload } from '../lib/appIcons';
+import { invoke } from '@tauri-apps/api/tauri';
 import { useVpnStore } from '../stores/vpn';
 import { t } from '../i18n';
 
@@ -30,8 +31,43 @@ const tick = ref(0);
 
 let timer: number | null = null;
 
+interface AppTrafficEntry {
+  name: string;
+  rx: number;
+  tx: number;
+}
+
+const appStats = ref<AppTrafficEntry[]>([]);
+let statsCounter = 0;
+let statsBusy = false;
+
+async function pollAppStats() {
+  if (statsBusy) return;
+  statsBusy = true;
+  try {
+    appStats.value = await invoke<AppTrafficEntry[]>('get_app_traffic');
+  } catch {
+    
+  } finally {
+    statsBusy = false;
+  }
+}
+
+function barWidth(a: AppTrafficEntry) {
+  const max = Math.max(...appStats.value.map((x) => x.rx + x.tx), 1);
+  return Math.max(3, ((a.rx + a.tx) / max) * 100);
+}
+
+function fmtBytes(b: number): string {
+  if (b >= 1_073_741_824) return (b / 1_073_741_824).toFixed(2) + ' GB';
+  if (b >= 1_048_576) return (b / 1_048_576).toFixed(1) + ' MB';
+  if (b >= 1_024) return (b / 1_024).toFixed(0) + ' KB';
+  return b + ' B';
+}
+
 function sample() {
   if (document.hidden) return;
+  if (++statsCounter % 3 === 0) void pollAppStats();
 
   rx[head] = (vpnStore.status.speed_rx / 1_000_000) * 8;
   tx[head] = (vpnStore.status.speed_tx / 1_000_000) * 8;
@@ -145,6 +181,125 @@ const pingTone = computed(() => {
   return 'ping-bad';
 });
 
+const todayRows = computed(() => {
+  void tick.value;
+  return vpnStore.trafficToday;
+});
+
+const todayTotal = computed(() => {
+  void tick.value;
+  const rows = todayRows.value;
+  return { total: rows.reduce((acc, r) => acc + r.total, 0) };
+});
+
+const weekTotal = computed(() => {
+  void tick.value;
+  return vpnStore.trafficWeekTotal;
+});
+
+interface WeekBar {
+  key: string;
+  label: string;
+  rxH: number;
+  txH: number;
+  title: string;
+}
+
+const weekBars = computed<WeekBar[]>(() => {
+  void tick.value;
+  
+  const perDay = new Map<string, { rx: number; tx: number }>();
+  const now = Date.now();
+  for (let i = 6; i >= 0; i--) {
+    const dt = new Date(now - i * 86_400_000);
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    perDay.set(`${dt.getFullYear()}-${m}-${d}`, { rx: 0, tx: 0 });
+  }
+  for (const entry of Object.values(vpnStore.trafficHistory)) {
+    for (const day of entry.days) {
+      const slot = perDay.get(day.d);
+      if (slot) {
+        slot.rx += day.rx;
+        slot.tx += day.tx;
+      }
+    }
+    if (entry.liveRx > 0 || entry.liveTx > 0) {
+      const slot = perDay.get(weekBarsTodayKey());
+      if (slot) {
+        slot.rx += entry.liveRx;
+        slot.tx += entry.liveTx;
+      }
+    }
+  }
+
+  let peak = 1;
+  for (const v of perDay.values()) peak = Math.max(peak, v.rx + v.tx);
+
+  const names = weekdayNames();
+  const bars: WeekBar[] = [];
+  let idx = 0;
+  for (const [key, val] of perDay.entries()) {
+    const dateMs = now - (6 - idx) * 86_400_000;
+    bars.push({
+      key,
+      label: names[new Date(dateMs).getDay()],
+      rxH: Math.max(val.rx > 0 ? 4 : 0, (val.rx / peak) * 100),
+      txH: Math.max(val.tx > 0 ? 4 : 0, (val.tx / peak) * 100),
+      title: `${key} — ${fmtBytes(val.rx + val.tx)}`,
+    });
+    idx++;
+  }
+  return bars;
+});
+
+function weekBarsTodayKey(): string {
+  const dt = new Date();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${dt.getFullYear()}-${m}-${d}`;
+}
+
+let _weekdayCache: string[] | null = null;
+function weekdayNames(): string[] {
+  if (_weekdayCache) return _weekdayCache;
+  const fmt = new Intl.DateTimeFormat(vpnStore.settings.language === 'ru' ? 'ru' : 'en', {
+    weekday: 'short',
+  });
+  
+  _weekdayCache = [0, 1, 2, 3, 4, 5, 6].map((dow) =>
+    fmt.format(new Date(2024, 0, 7 + dow)),
+  );
+  return _weekdayCache;
+}
+
+function rowWidth(total: number): number {
+  const max = Math.max(...todayRows.value.map((r) => r.total), 1);
+  return Math.max(3, (total / max) * 100);
+}
+
+const quotaPct = computed(() => {
+  const q = vpnStore.trafficQuota;
+  if (!q || q.total <= 0) return 100;
+  return Math.max(2, Math.min(100, (q.left / q.total) * 100));
+});
+
+const quotaTone = computed(() => {
+  const q = vpnStore.trafficQuota;
+  if (!q || q.total <= 0) return 'ok';
+  const ratio = q.left / q.total;
+  if (q.left === 0) return 'empty';
+  if (ratio <= 0.05) return 'critical';
+  if (ratio <= 0.2) return 'low';
+  return 'ok';
+});
+
+const quotaCaption = computed(() => {
+  const q = vpnStore.trafficQuota;
+  if (!q) return '';
+  return `${fmtBytes(q.used)} / ${fmtBytes(q.total)}`;
+});
+
 const pills = computed(() => [
   {
     key: 'ping',
@@ -256,6 +411,22 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <div class="chart-card rise" style="animation-delay: 190ms">
+        <div class="chart-header">
+          <h2 class="chart-title" v-text="t('analysis.appStats')"></h2>
+          <span class="chart-sub mono" v-text="t('analysis.appSession')"></span>
+        </div>
+        <div v-if="!appStats.length" class="apps-empty mono" v-text="t('analysis.appEmpty')"></div>
+        <div v-else class="apps-list">
+          <div v-for="(a, i) in appStats.slice(0, 6)" :key="a.name" class="app-row">
+            <span class="app-rank mono" v-text="String(i + 1).padStart(2, '0')"></span>
+            <span class="app-name" v-text="a.name"></span>
+            <div class="app-bar"><i :style="{ width: barWidth(a) + '%' }"></i></div>
+            <span class="app-val mono" v-text="fmtBytes(a.rx + a.tx)"></span>
+          </div>
+        </div>
+      </div>
+
       <div class="chart-card rise" style="animation-delay: 230ms">
         <div class="chart-header">
           <h2 class="chart-title" v-text="t('analysis.throughput')"></h2>
@@ -306,7 +477,64 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="conn-card rise" style="animation-delay: 310ms">
+      <div class="chart-card rise" style="animation-delay: 270ms">
+        <div class="chart-header">
+          <h2 class="chart-title" v-text="t('analysis.historyTitle')"></h2>
+          <div class="history-summary">
+            <span class="foot-pill">
+              <span v-text="t('analysis.historyToday')"></span>
+              <span class="mono foot-val" v-text="fmtBytes(todayTotal.total)"></span>
+            </span>
+            <span class="foot-pill">
+              <span v-text="t('analysis.historyWeek')"></span>
+              <span class="mono foot-val" v-text="fmtBytes(weekTotal.total)"></span>
+            </span>
+          </div>
+        </div>
+
+        
+        <div class="hist-chart">
+          <div
+            v-for="(col, i) in weekBars"
+            :key="col.key"
+            class="hist-col"
+            :title="col.title"
+          >
+            <div class="hist-stack">
+              <i class="hist-bar hist-bar--tx" :style="{ height: col.txH + '%' }"></i>
+              <i class="hist-bar hist-bar--rx" :style="{ height: col.rxH + '%' }"></i>
+            </div>
+            <span class="hist-label mono" :class="{ 'hist-label--today': i === weekBars.length - 1 }" v-text="col.label"></span>
+          </div>
+        </div>
+
+        
+        <div v-if="todayRows.length > 0" class="apps-list hist-rows">
+          <div v-for="row in todayRows" :key="row.name" class="app-row">
+            <span class="app-name" v-text="row.name"></span>
+            <div class="app-bar"><i :style="{ width: rowWidth(row.total) + '%' }"></i></div>
+            <span class="app-val mono" v-text="fmtBytes(row.total)"></span>
+          </div>
+        </div>
+
+        
+        <div v-if="vpnStore.trafficQuota" class="quota-block">
+          <div class="quota-head">
+            <span v-text="t('analysis.quotaLeft')"></span>
+            <span class="mono quota-val" :class="quotaTone" v-text="fmtBytes(vpnStore.trafficQuota.left)"></span>
+          </div>
+          <div class="quota-track">
+            <i
+              class="quota-fill"
+              :class="'quota-fill--' + quotaTone"
+              :style="{ width: quotaPct + '%' }"
+            ></i>
+          </div>
+          <p class="quota-sub mono" v-text="quotaCaption"></p>
+        </div>
+      </div>
+
+      <div class="chart-card rise" style="animation-delay: 310ms">
         <h2 class="card-title" v-text="t('analysis.connection')"></h2>
         <div class="conn-rows">
           <div class="conn-row">
@@ -472,7 +700,7 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.chart-title { font-size: 13px; font-weight: 500; }
+.chart-title { font-size: 13px; font-weight: 500; }\n\n.chart-sub { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted-foreground); }
 
 .chart-legend {
   display: flex;
@@ -559,4 +787,190 @@ onUnmounted(() => {
 .conn-value { font-size: 12.5px; color: var(--foreground); }
 
 .ping-spark { width: 160px; height: 34px; flex-shrink: 0; }
+
+.apps-empty {
+  padding: 18px 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.apps-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.app-row:last-child {
+  border-bottom: none;
+}
+
+.app-rank {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+.app-name {
+  width: 180px;
+  font-size: 13px;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.app-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--success), #7ab8ff);
+}
+
+.app-val {
+  min-width: 84px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-summary {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.hist-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  height: 108px;
+  padding: 12px 14px 8px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.hist-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hist-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 34px;
+  height: 62px;
+  border-radius: 6px;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.hist-bar {
+  display: block;
+  width: 100%;
+  transition: height 600ms cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+
+.hist-bar--rx {
+  background: linear-gradient(180deg, rgba(56, 224, 178, 0.85), rgba(56, 224, 178, 0.5));
+}
+
+.hist-bar--tx {
+  background: linear-gradient(180deg, rgba(255, 158, 100, 0.75), rgba(255, 158, 100, 0.45));
+}
+
+.hist-label {
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+  letter-spacing: 0.02em;
+}
+
+.hist-label--today {
+  color: #7ab8ff;
+}
+
+.hist-rows {
+  margin-top: 10px;
+}
+
+.quota-block {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.quota-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.quota-val {
+  font-size: 12.5px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.quota-track {
+  margin-top: 8px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.quota-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 700ms cubic-bezier(0.22, 0.9, 0.3, 1), background 300ms ease;
+}
+
+.quota-fill--ok {
+  background: linear-gradient(90deg, var(--success), #7ab8ff);
+}
+
+.quota-fill--low {
+  background: linear-gradient(90deg, oklch(0.78 0.16 80), oklch(0.82 0.16 65));
+}
+
+.quota-fill--critical {
+  background: linear-gradient(90deg, oklch(0.72 0.17 45), oklch(0.78 0.17 35));
+}
+
+.quota-fill--empty {
+  background: var(--destructive);
+}
+
+.quota-sub {
+  margin: 7px 0 0;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
 </style>

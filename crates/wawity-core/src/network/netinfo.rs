@@ -66,7 +66,7 @@ pub fn list_adapters() -> Option<Vec<AdapterInfo>> {
                 guid: row.InterfaceGuid,
             });
         }
-        FreeMibTable(table as *const _);
+        let _ = FreeMibTable(table as *const _);
     }
     Some(rows)
 }
@@ -167,7 +167,7 @@ pub fn default_physical_interface() -> Option<String> {
                 _ => best = Some((total_metric, alias)),
             }
         }
-        FreeMibTable(table as *const _);
+        let _ = FreeMibTable(table as *const _);
     }
     best.map(|(_, alias)| alias)
 }

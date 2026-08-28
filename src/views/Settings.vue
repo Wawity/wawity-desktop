@@ -964,7 +964,7 @@
           <div v-else-if="activeTab === 'split'" class="card split-card">
             <p class="split-desc" v-text="t('settings.splitDesc')" />
 
-            <!-- ---------- DNS center ---------- -->
+            
             <div class="dns-block">
               <div class="block-head">
                 <span class="split-mode-title" v-text="t('settings.dnsCenterTitle')" />
@@ -1820,7 +1820,7 @@ const SPLIT_TEMPLATES: SplitTemplateDef[] = [
 const splitTab = ref<'file' | 'process' | 'games' | 'domains' | 'ips'>('file');
 const splitOn = computed(() => vpnStore.settings.split_mode !== 'off');
 
-/* ---------- DNS center + selector groups ---------- */
+
 
 interface DnsPreset {
   key: string;
@@ -1841,7 +1841,7 @@ function activeDnsKey(): string {
   const s = vpnStore.settings;
   return s.dns_custom_doh && s.dns_custom_doh.trim() ? 'custom' : s.dns_remote ?? 'cloudflare';
 }
-// expose as computed for template
+
 const activeDnsKeyRef = computed(() => activeDnsKey());
 
 function setDnsPreset(key: string) {
@@ -3065,7 +3065,7 @@ html.motion-fancy .pane-leave-active {
   gap: 16px;
   padding: 15px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  /* offscreen rows skip layout/paint entirely — big lists stay smooth */
+  
   content-visibility: auto;
   contain-intrinsic-size: auto 54px;
 }
@@ -3466,7 +3466,7 @@ html.motion-fancy .pane-leave-active {
   color: rgba(235, 238, 250, 0.5);
 }
 
-/* ---------- selector groups ---------- */
+
 
 .block-head {
   display: flex;
@@ -3634,7 +3634,7 @@ html.motion-fancy .pane-leave-active {
   gap: 6px;
 }
 
-/* ---------- DNS center ---------- */
+
 
 .dns-block {
   position: relative;

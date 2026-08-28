@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import { watch } from 'vue';
 import { invoke } from '@tauri-apps/api/tauri';
 import { useVpnStore } from '../stores/vpn';
@@ -13,6 +14,28 @@ export interface ToastItem {
   duration: number;
 }
 
+const toastList = reactive<ToastItem[]>([]);
+let nextToastId = 1;
+
+function removeToast(id: number) {
+  const idx = toastList.findIndex((item) => item.id === id);
+  if (idx >= 0) toastList.splice(idx, 1);
+}
+
+export function pushToast(
+  variant: ToastVariant,
+  title: string,
+  message?: string,
+  duration = 4000,
+) {
+  const id = nextToastId++;
+  toastList.push({ id, variant, title, message, duration });
+  if (duration > 0) {
+    window.setTimeout(() => removeToast(id), duration);
+  }
+  return id;
+}
+
 async function sendNative(title: string, body?: string, variant: ToastVariant = 'info') {
   try {
     await invoke('show_notification', { title, body: body ?? null, variant });
@@ -22,7 +45,7 @@ async function sendNative(title: string, body?: string, variant: ToastVariant = 
 let _initialized = false;
 
 export function useNotifications() {
-  return {};
+  return { toasts: toastList, pushToast, removeToast };
 }
 
 export async function initNotificationWatcher() {

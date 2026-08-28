@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::config::{parse_all_from_subscription, parse_subscription, ConfigGenerator};
+use crate::config::{parse_all_from_subscription, parse_subscription, ConfigGenerator, RouteRuleSpec};
 use crate::error::VpnError;
 use crate::network::{RoutingManager, TunManager};
 use crate::process::ProcessManager;
@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 use reqwest::blocking::Client;
@@ -119,6 +119,27 @@ fn split_config_for(handles: &ConnectionHandles, apps: Vec<String>) -> crate::co
     }
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default)]
+pub struct SelectorOptions {
+    
+    pub strategy: String,
+    
+    pub urls: Vec<String>,
+}
+
+impl Default for SelectorOptions {
+    fn default() -> Self {
+        Self { strategy: "select".to_string(), urls: Vec::new() }
+    }
+}
+
+impl SelectorOptions {
+    pub fn is_empty(&self) -> bool {
+        self.urls.is_empty()
+    }
+}
+
 pub struct AppState {
     pub process_manager: Arc<Mutex<ProcessManager>>,
     pub tun_manager: Arc<Mutex<TunManager>>,
@@ -136,6 +157,7 @@ pub struct AppState {
     pub current_quantum_resistant: Arc<Mutex<bool>>,
     pub privacy: Arc<Mutex<PrivacyOptions>>,
     pub split_rules: Arc<Mutex<SplitRules>>,
+    pub selector: Arc<Mutex<SelectorOptions>>,
     pub tray_servers: Arc<Mutex<Vec<TrayServerEntry>>>,
     pub tray_selected_id: Arc<Mutex<Option<String>>>,
     pub default_kill_switch: Arc<Mutex<bool>>,
@@ -182,6 +204,7 @@ impl AppState {
             current_quantum_resistant: Arc::new(Mutex::new(false)),
             privacy: Arc::new(Mutex::new(PrivacyOptions::default())),
             split_rules: Arc::new(Mutex::new(SplitRules::default())),
+        selector: Arc::new(Mutex::new(SelectorOptions::default())),
             tray_servers: Arc::new(Mutex::new(Vec::new())),
             tray_selected_id: Arc::new(Mutex::new(None)),
             default_kill_switch: Arc::new(Mutex::new(true)),
@@ -223,6 +246,7 @@ pub struct ConnectionHandles {
     pub current_quantum_resistant: Arc<Mutex<bool>>,
     pub privacy: Arc<Mutex<PrivacyOptions>>,
     pub split_rules: Arc<Mutex<SplitRules>>,
+    pub selector: Arc<Mutex<SelectorOptions>>,
 }
 
 impl ConnectionHandles {
@@ -241,6 +265,7 @@ impl ConnectionHandles {
             current_quantum_resistant: Arc::clone(&state.current_quantum_resistant),
             privacy: Arc::clone(&state.privacy),
             split_rules: Arc::clone(&state.split_rules),
+            selector: Arc::clone(&state.selector),
         }
     }
 }
@@ -254,10 +279,35 @@ pub static CLIENT_USER_AGENTS: &[&str] = &[
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 ];
 
+pub static EXTRA_HEADERS: Lazy<RwLock<Vec<(String, String)>>> =
+    Lazy::new(|| RwLock::new(Vec::new()));
+
+pub fn set_extra_headers(headers: Vec<(String, String)>) {
+    if let Ok(mut guard) = EXTRA_HEADERS.write() {
+        *guard = headers;
+    }
+}
+
+pub fn extra_header_map() -> reqwest::header::HeaderMap {
+    let mut map = reqwest::header::HeaderMap::new();
+    if let Ok(guard) = EXTRA_HEADERS.read() {
+        for (name, value) in guard.iter() {
+            if let (Ok(header_name), Ok(header_value)) = (
+                reqwest::header::HeaderName::from_bytes(name.as_bytes()),
+                reqwest::header::HeaderValue::from_str(value),
+            ) {
+                map.insert(header_name, header_value);
+            }
+        }
+    }
+    map
+}
+
 pub fn make_client_with_ua(timeout_secs: u64, ua: &str) -> Result<Client, String> {
     Client::builder()
         .timeout(Duration::from_secs(timeout_secs))
         .user_agent(ua)
+        .default_headers(extra_header_map())
         .redirect(reqwest::redirect::Policy::limited(10))
         .connection_verbose(false)
         .tcp_keepalive(Duration::from_secs(90))
@@ -330,6 +380,16 @@ pub struct PrivacyOptions {
     pub tunnel_own_traffic: bool,
     pub dns_leak_guard: bool,
     pub bootstrap_dns: String,
+    pub dpi_profile: String,
+    pub route_rules: Vec<RouteRuleSpec>,
+    pub route_all: bool,
+    
+    pub dns_remote: String,
+    
+    pub dns_custom_doh: Option<String>,
+    
+    pub dns_block_ads: bool,
+    pub dns_block_trackers: bool,
 }
 
 impl Default for PrivacyOptions {
@@ -340,6 +400,13 @@ impl Default for PrivacyOptions {
             tunnel_own_traffic: true,
             dns_leak_guard: true,
             bootstrap_dns: "cloudflare".to_string(),
+            dpi_profile: "off".to_string(),
+            route_rules: Vec::new(),
+            route_all: true,
+            dns_remote: "cloudflare".to_string(),
+            dns_custom_doh: None,
+            dns_block_ads: true,
+            dns_block_trackers: true,
         }
     }
 }
@@ -938,13 +1005,17 @@ pub fn start_session(
     .with_local_rulesets(ads_ruleset_path, private_ruleset_path)
     .with_default_interface(default_iface.clone())
     .with_padding(true)
+    .with_dpi(&privacy.dpi_profile)
     .with_privacy(
         privacy.strict_route,
         privacy.allow_insecure_tls,
         privacy.tunnel_own_traffic,
         &privacy.bootstrap_dns,
     )
-    .with_system_dns(resolve_isp_dns(&default_iface));
+    .with_dns_center(&privacy.dns_remote, privacy.dns_custom_doh.as_deref(), privacy.dns_block_ads || privacy.dns_block_trackers)
+    .with_routing(privacy.route_rules.clone(), privacy.route_all)
+    .with_system_dns(resolve_isp_dns(&default_iface))
+    .with_main_selector(handles.selector.lock().unwrap().clone());
     let config_json = generator
         .to_json(&exit_config, entry_config.as_ref())
         .map_err(|e| format!("Config generate: {}", e))?;
@@ -1122,13 +1193,17 @@ pub fn switch_session(
     .with_local_rulesets(ads_ruleset_path, private_ruleset_path)
     .with_default_interface(default_iface.clone())
     .with_padding(true)
+    .with_dpi(&privacy.dpi_profile)
     .with_privacy(
         privacy.strict_route,
         privacy.allow_insecure_tls,
         privacy.tunnel_own_traffic,
         &privacy.bootstrap_dns,
     )
+    .with_dns_center(&privacy.dns_remote, privacy.dns_custom_doh.as_deref(), privacy.dns_block_ads || privacy.dns_block_trackers)
+    .with_routing(privacy.route_rules.clone(), privacy.route_all)
     .with_system_dns(resolve_isp_dns(&default_iface))
+    .with_main_selector(handles.selector.lock().unwrap().clone())
     .to_json(&exit_config, entry_config.as_ref())
     .map_err(|e| {
         crate::util::net_debug_log(&format!("switch: config generate failed: {}", e));
@@ -1334,13 +1409,17 @@ pub fn reload_bypass_apps(
     .with_local_rulesets(ads_ruleset_path, private_ruleset_path)
     .with_default_interface(default_iface.clone())
     .with_padding(true)
+    .with_dpi(&privacy.dpi_profile)
     .with_privacy(
         privacy.strict_route,
         privacy.allow_insecure_tls,
         privacy.tunnel_own_traffic,
         &privacy.bootstrap_dns,
     )
-    .with_system_dns(resolve_isp_dns(&default_iface));
+    .with_dns_center(&privacy.dns_remote, privacy.dns_custom_doh.as_deref(), privacy.dns_block_ads || privacy.dns_block_trackers)
+    .with_routing(privacy.route_rules.clone(), privacy.route_all)
+    .with_system_dns(resolve_isp_dns(&default_iface))
+    .with_main_selector(handles.selector.lock().unwrap().clone());
     let new_config_json = match generator.to_json(&exit_config, entry_config.as_ref()) {
         Ok(json) => json,
         Err(e) => {

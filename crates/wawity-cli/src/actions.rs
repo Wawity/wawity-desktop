@@ -15,6 +15,7 @@ pub fn privacy_from(settings: &Settings) -> PrivacyOptions {
         tunnel_own_traffic: settings.tunnel_own_traffic,
         dns_leak_guard: settings.dns_leak_guard,
         bootstrap_dns: settings.bootstrap_dns.clone(),
+        ..Default::default()
     }
 }
 

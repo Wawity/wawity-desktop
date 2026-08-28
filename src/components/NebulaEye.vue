@@ -3,9 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-
-const props = defineProps<{ active: boolean }>();
+import { ref, onMounted, onUnmounted } from 'vue';
 
 const pane = ref<HTMLCanvasElement | null>(null);
 const ready = ref(false);
@@ -442,17 +440,14 @@ function chase(e: PointerEvent) {
 }
 
 function nap() {
-  if (document.hidden || !props.active) {
+  if (document.hidden) {
     dozing = true;
     cancelAnimationFrame(frame);
   } else if (dozing) {
     dozing = false;
-    born = 0;
     frame = requestAnimationFrame(loop);
   }
 }
-
-watch(() => props.active, nap);
 
 function sink(e: Event) {
   e.preventDefault();
@@ -529,7 +524,7 @@ onUnmounted(() => {
   if (gl) {
     const plug = gl.getExtension('WEBGL_lose_context');
     if (plug) plug.loseContext();
-  }
+    }
   gl = null;
   sceneProg = null;
   postProg = null;

@@ -121,6 +121,9 @@ function pickServer(id: string) {
 }
 
 function toggle() {
+  if (vpnStore.status.connected) {
+    emit('wawity-tray-disconnect').catch(() => {});
+  }
   invoke('tray_toggle_connection').catch(() => {});
 }
 
@@ -162,7 +165,7 @@ onMounted(async () => {
   reload();
   unlisten = await listen('tray-popup-shown', reload);
   timer = setInterval(() => {
-    // hidden tray window must not burn CPU on status polling
+    
     if (document.hidden) return;
     vpnStore.refreshStatus().catch(() => {});
   }, 2000);

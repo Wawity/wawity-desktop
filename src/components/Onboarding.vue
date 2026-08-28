@@ -1,5 +1,5 @@
 <template>
-  <div class="ob-shell">
+  <div class="ob-shell" :class="{ 'ob-shell--booted': booted }">
     <NeutronStar :active="true" aria-hidden="true" />
     <div class="ob-vignette" aria-hidden="true"></div>
 
@@ -8,7 +8,7 @@
         <img :src="iconSrc" class="ob-logo" alt="" aria-hidden="true" />
         <span class="ob-name">wawity</span>
       </div>
-      <span v-if="step < 8" class="ob-step mono" v-text="ot('stepLabel', { n: step })"></span>
+      <span v-if="step < 10" class="ob-step mono" v-text="ot('stepLabel', { n: step })"></span>
     </header>
 
     <main class="ob-stage">
@@ -17,17 +17,22 @@
           <div class="ob-intro-halo rise" style="--d: 0.15s">
             <img :src="iconSrc" class="ob-intro-logo" alt="" aria-hidden="true" />
           </div>
-          <h1 class="ob-hero-title rise" style="--d: 0.55s">Приступим к настройке!</h1>
-          <p class="ob-hero-sub rise" style="--d: 0.85s">Let's get you set up!</p>
-          <button type="button" class="ob-btn ob-btn--primary ob-intro-btn rise" style="--d: 1.2s" @click="step = 1">
+          <h1 class="ob-hero-title rise" style="--d: 0.18s">Приступим к настройке!</h1>
+          <p class="ob-hero-sub rise" style="--d: 0.22s">Let's get you set up!</p>
+          <button
+            type="button"
+            class="ob-btn ob-btn--primary ob-intro-btn rise"
+            style="--d: 0.28s"
+            @click="step = 1"
+          >
             <span>Поехали · Let's go</span>
             <ArrowRight :size="15" aria-hidden="true" />
           </button>
         </section>
 
         <section v-else-if="step === 1" key="lang" class="ob-lang">
-          <h1 class="ob-lang-title rise" style="--d: 0.12s">На каком языке<br />разговариваем?</h1>
-          <div class="ob-lang-opts rise" style="--d: 0.44s">
+          <h1 class="ob-lang-title rise" style="--d: 0.05s">На каком языке<br />разговариваем?</h1>
+          <div class="ob-lang-opts rise" style="--d: 0.15s">
             <button type="button" class="ob-lang-btn" @click="chooseLanguage('ru')">
               <span class="ob-lang-label">Русский</span>
               <span class="ob-lang-hint">продолжить на русском</span>
@@ -39,18 +44,112 @@
           </div>
         </section>
 
-        <section v-else-if="step === 2" key="games" class="ob-card">
+        
+        <section v-else-if="step === 2" key="migrate" class="ob-card">
+          <div v-if="migState === 'scanning'" class="ob-mig-scan">
+            <span class="ob-mig-orb" aria-hidden="true"></span>
+            <p class="ob-mig-status mono" v-text="ot('migScanning')"></p>
+            <Transition name="pane" mode="out-in">
+              <p :key="migClientLabel" class="ob-mig-client" v-text="migClientLabel"></p>
+            </Transition>
+          </div>
+
+          <template v-else-if="migState === 'found'">
+            <div class="ob-head">
+              <div class="ob-badge ob-badge--success rise" style="--d: 0.05s">
+                <HardDriveDownload :size="22" aria-hidden="true" />
+              </div>
+              <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('migFoundTitle', { n: migPicked.size })"></h2>
+              <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('migFoundSub')"></p>
+            </div>
+            <div class="ob-list ob-mig-list rise" style="--d: 0.13s">
+              <button
+                v-for="(sub, i) in migFound"
+                :key="sub.name + i"
+                type="button"
+                class="ob-row"
+                :class="{ 'ob-row--picked': !migSkipped.has(sub.name + i) }"
+                @click="toggleMigRow(i)"
+              >
+                <span class="ob-row-icon"><AppWindow :size="14" aria-hidden="true" /></span>
+                <span class="ob-row-text">
+                  <span class="ob-row-name" v-text="sub.name"></span>
+                  <span
+                    class="ob-row-meta mono"
+                    v-text="
+                      sub.url ? shortUrl(sub.url) : ot('migNodes', { n: sub.inlineLinks.length })
+                    "
+                  ></span>
+                </span>
+                <span
+                  class="ob-check"
+                  :class="{ 'ob-check--on': !migSkipped.has(sub.name + i) }"
+                >
+                  <Check :size="12" aria-hidden="true" />
+                </span>
+              </button>
+            </div>
+            <div class="ob-actions rise" style="--d: 0.16s">
+              <button
+                type="button"
+                class="ob-btn ob-btn--primary"
+                :disabled="migImporting || migPicked.size === 0"
+                @click="commitMigration"
+              >
+                <Loader2 v-if="migImporting" :size="14" class="spin" aria-hidden="true" />
+                <span v-text="ot('migImport', { n: migPicked.size })"></span>
+              </button>
+              <button
+                type="button"
+                class="ob-btn ob-btn--ghost"
+                :disabled="migImporting"
+                @click="skipMigration"
+                v-text="ot('migSkip')"
+              ></button>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="ob-head">
+              <div class="ob-badge rise" style="--d: 0.05s">
+                <HardDriveDownload :size="22" aria-hidden="true" />
+              </div>
+              <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('migEmptyTitle')"></h2>
+              <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('migEmptySub')"></p>
+            </div>
+            <div class="ob-actions rise" style="--d: 0.06s">
+              <button
+                type="button"
+                class="ob-btn ob-btn--primary"
+                @click="step = 3"
+                v-text="ot('migContinue')"
+              ></button>
+            </div>
+          </template>
+        </section>
+
+        <section v-else-if="step === 3" key="games" class="ob-card">
           <div class="ob-head">
             <div class="ob-badge rise" style="--d: 0.05s">
               <Gamepad2 :size="22" aria-hidden="true" />
             </div>
-            <h2 class="ob-title rise" style="--d: 0.14s" v-text="ot('gamesTitle')"></h2>
-            <p class="ob-sub rise" style="--d: 0.24s" v-text="ot('gamesSub')"></p>
+            <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('gamesTitle')"></h2>
+            <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('gamesSub')"></p>
           </div>
           <template v-if="!scanStarted">
-            <div class="ob-actions rise" style="--d: 0.36s">
-              <button type="button" class="ob-btn ob-btn--primary" @click="runGameScan" v-text="ot('gamesScan')"></button>
-              <button type="button" class="ob-btn ob-btn--ghost" @click="step = 3" v-text="ot('gamesSkip')"></button>
+            <div class="ob-actions rise" style="--d: 0.06s">
+              <button
+                type="button"
+                class="ob-btn ob-btn--primary"
+                @click="runGameScan"
+                v-text="ot('gamesScan')"
+              ></button>
+              <button
+                type="button"
+                class="ob-btn ob-btn--ghost"
+@click="step = 4"
+                v-text="ot('gamesSkip')"
+              ></button>
             </div>
           </template>
           <template v-else-if="scanning">
@@ -60,7 +159,12 @@
             </div>
           </template>
           <template v-else>
-            <p v-if="games.length" class="ob-note rise" style="--d: 0.05s" v-text="ot('gamesFound', { n: games.length })"></p>
+            <p
+              v-if="games.length"
+              class="ob-note rise"
+              style="--d: 0.05s"
+              v-text="ot('gamesFound', { n: games.length })"
+            ></p>
             <p v-else class="ob-note rise" style="--d: 0.05s" v-text="ot('gamesEmpty')"></p>
             <div v-if="games.length" class="ob-list">
               <button
@@ -74,7 +178,11 @@
               >
                 <span class="ob-row-icon">
                   <img v-if="icons[game.exePaths[0]]" :src="icons[game.exePaths[0]]" alt="" />
-                  <span v-else class="ob-row-letter" v-text="game.displayName.slice(0, 1).toUpperCase()"></span>
+                  <span
+                    v-else
+                    class="ob-row-letter"
+                    v-text="game.displayName.slice(0, 1).toUpperCase()"
+                  ></span>
                 </span>
                 <span class="ob-row-text">
                   <span class="ob-row-name" v-text="game.displayName"></span>
@@ -85,35 +193,61 @@
                 </span>
               </button>
             </div>
-            <div class="ob-actions rise" style="--d: 0.3s">
-              <button v-if="games.length" type="button" class="ob-btn ob-btn--primary" :disabled="chosenGames.size === 0" @click="commitGames" v-text="ot('gamesAdd', { n: chosenGames.size })"></button>
-              <button type="button" class="ob-btn ob-btn--ghost" @click="step = 3" v-text="ot(games.length ? 'skip' : 'next')"></button>
+            <div class="ob-actions rise" style="--d: 0.05s">
+              <button
+                v-if="games.length"
+                type="button"
+                class="ob-btn ob-btn--primary"
+                :disabled="chosenGames.size === 0"
+                @click="commitGames"
+                v-text="ot('gamesAdd', { n: chosenGames.size })"
+              ></button>
+              <button
+                type="button"
+                class="ob-btn ob-btn--ghost"
+@click="step = 4"
+                v-text="ot(games.length ? 'skip' : 'next')"
+              ></button>
             </div>
           </template>
         </section>
 
-        <section v-else-if="step === 3" key="exceptions" class="ob-card">
+        <section v-else-if="step === 4" key="exceptions" class="ob-card">
           <div class="ob-head">
             <div class="ob-badge rise" style="--d: 0.05s">
               <AppWindow :size="22" aria-hidden="true" />
             </div>
-            <h2 class="ob-title rise" style="--d: 0.14s" v-text="ot('excTitle')"></h2>
-            <p class="ob-sub rise" style="--d: 0.24s" v-text="ot('excSub')"></p>
+            <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('excTitle')"></h2>
+            <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('excSub')"></p>
           </div>
-          <div class="ob-seg rise" style="--d: 0.32s">
-            <button type="button" class="ob-seg-btn" :class="{ 'ob-seg-btn--active': excTab === 'apps' }" @click="openProcessTab">
+          <div class="ob-seg rise" style="--d: 0.05s">
+            <button
+              type="button"
+              class="ob-seg-btn"
+              :class="{ 'ob-seg-btn--active': excTab === 'apps' }"
+              @click="openProcessTab"
+            >
               <LayoutGrid :size="14" aria-hidden="true" />
               <span v-text="ot('excTabApps')"></span>
             </button>
-            <button type="button" class="ob-seg-btn" :class="{ 'ob-seg-btn--active': excTab === 'file' }" @click="excTab = 'file'">
+            <button
+              type="button"
+              class="ob-seg-btn"
+              :class="{ 'ob-seg-btn--active': excTab === 'file' }"
+              @click="excTab = 'file'"
+            >
               <FolderOpen :size="14" aria-hidden="true" />
               <span v-text="ot('excTabFile')"></span>
             </button>
           </div>
-          <div v-if="excTab === 'apps'" class="ob-pane rise" style="--d: 0.4s">
+          <div v-if="excTab === 'apps'" class="ob-pane rise" style="--d: 0.15s">
             <div class="ob-search">
               <Search :size="14" class="ob-search-icon" aria-hidden="true" />
-              <input v-model="processQuery" class="ob-search-input" :placeholder="ot('excSearch')" />
+              <input
+                v-model="processQuery"
+                class="ob-search-input"
+                :placeholder="ot('excSearch')"
+              />
             </div>
             <div v-if="!processesLoaded" class="ob-wait">
               <span class="ob-arc" aria-hidden="true"></span>
@@ -130,7 +264,11 @@
               >
                 <span class="ob-row-icon">
                   <img v-if="icons[app.path]" :src="icons[app.path]" alt="" />
-                  <span v-else class="ob-row-letter" v-text="app.name.slice(0, 1).toUpperCase()"></span>
+                  <span
+                    v-else
+                    class="ob-row-letter"
+                    v-text="app.name.slice(0, 1).toUpperCase()"
+                  ></span>
                 </span>
                 <span class="ob-row-text">
                   <span class="ob-row-name" v-text="app.name"></span>
@@ -153,26 +291,42 @@
             <span v-for="app in picked" :key="app.path" class="ob-chip">
               <img v-if="icons[app.path]" :src="icons[app.path]" alt="" />
               <span v-text="app.name"></span>
-              <button type="button" class="ob-chip-x" @click="removePicked(app.path)" aria-label="remove">
+              <button
+                type="button"
+                class="ob-chip-x"
+                @click="removePicked(app.path)"
+                aria-label="remove"
+              >
                 <X :size="11" aria-hidden="true" />
               </button>
             </span>
           </div>
           <div class="ob-actions rise" style="--d: 0.48s">
-            <button v-if="picked.length" type="button" class="ob-btn ob-btn--primary" @click="commitPicked" v-text="ot('excAdd', { n: picked.length })"></button>
-            <button type="button" class="ob-btn ob-btn--ghost" @click="step = 4" v-text="ot('skip')"></button>
+            <button
+              v-if="picked.length"
+              type="button"
+              class="ob-btn ob-btn--primary"
+              @click="commitPicked"
+              v-text="ot('excAdd', { n: picked.length })"
+            ></button>
+            <button
+              type="button"
+              class="ob-btn ob-btn--ghost"
+              @click="step = 5"
+              v-text="ot('skip')"
+            ></button>
           </div>
         </section>
 
-        <section v-else-if="step === 4" key="discord" class="ob-card">
+        <section v-else-if="step === 5" key="discord" class="ob-card">
           <div class="ob-head">
             <div class="ob-badge rise" style="--d: 0.05s">
               <MessageCircle :size="22" aria-hidden="true" />
             </div>
-            <h2 class="ob-title rise" style="--d: 0.14s" v-text="ot('dcTitle')"></h2>
-            <p class="ob-sub rise" style="--d: 0.24s" v-text="ot('dcSub')"></p>
+            <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('dcTitle')"></h2>
+            <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('dcSub')"></p>
           </div>
-          <div class="dc-stage rise" style="--d: 0.34s">
+          <div class="dc-stage rise" style="--d: 0.13s">
             <div class="dc-profile">
               <div class="dc-banner"></div>
               <div class="dc-avatar">
@@ -216,30 +370,42 @@
               </div>
             </div>
           </div>
-          <div class="ob-setting rise" style="--d: 0.44s">
+          <div class="ob-setting rise" style="--d: 0.15s">
             <div class="ob-setting-left">
               <MessageCircle :size="16" class="ob-setting-icon" aria-hidden="true" />
               <span class="ob-setting-title" v-text="ot('dcToggle')"></span>
             </div>
-            <button type="button" class="ob-toggle" :class="{ 'ob-toggle--on': discordOn }" @click="discordOn = !discordOn" role="switch" :aria-checked="discordOn">
+            <button
+              type="button"
+              class="ob-toggle"
+              :class="{ 'ob-toggle--on': discordOn }"
+              @click="discordOn = !discordOn"
+              role="switch"
+              :aria-checked="discordOn"
+            >
               <span class="ob-toggle-thumb" :class="{ 'ob-toggle-thumb--on': discordOn }"></span>
             </button>
           </div>
-          <p class="ob-fineprint rise" style="--d: 0.5s" v-text="ot('dcPrivacyNote')"></p>
+          <p class="ob-fineprint rise" style="--d: 0.16s" v-text="ot('dcPrivacyNote')"></p>
           <div class="ob-actions rise" style="--d: 0.56s">
-            <button type="button" class="ob-btn ob-btn--primary" @click="step = 5" v-text="ot('next')"></button>
+            <button
+              type="button"
+              class="ob-btn ob-btn--primary"
+@click="step = 6"
+              v-text="ot('next')"
+            ></button>
           </div>
         </section>
 
-        <section v-else-if="step === 5" key="killswitch" class="ob-card">
+        <section v-else-if="step === 6" key="killswitch" class="ob-card">
           <div class="ob-head">
             <div class="ob-badge ob-badge--danger rise" style="--d: 0.05s">
               <ShieldAlert :size="22" aria-hidden="true" />
             </div>
-            <h2 class="ob-title rise" style="--d: 0.14s" v-text="ot('ksTitle')"></h2>
-            <p class="ob-sub rise" style="--d: 0.24s" v-text="ot('ksWhat')"></p>
+            <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('ksTitle')"></h2>
+            <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('ksWhat')"></p>
           </div>
-          <div class="ob-cols rise" style="--d: 0.34s">
+          <div class="ob-cols rise" style="--d: 0.13s">
             <div class="ob-col ob-col--good">
               <p class="ob-col-title">
                 <ThumbsUp :size="13" aria-hidden="true" />
@@ -259,31 +425,49 @@
               </ul>
             </div>
           </div>
-          <p class="ob-fit rise" style="--d: 0.42s"><strong v-text="ot('fitFor')"></strong> <span v-text="ot('ksFor')"></span></p>
-          <p class="ob-fit rise" style="--d: 0.46s"><strong v-text="ot('notFor')"></strong> <span v-text="ot('ksNot')"></span></p>
+          <p class="ob-fit rise" style="--d: 0.42s">
+            <strong v-text="ot('fitFor')"></strong>
+            <span v-text="ot('ksFor')"></span>
+          </p>
+          <p class="ob-fit rise" style="--d: 0.16s">
+            <strong v-text="ot('notFor')"></strong>
+            <span v-text="ot('ksNot')"></span>
+          </p>
           <div class="ob-setting rise" style="--d: 0.52s">
             <div class="ob-setting-left">
               <ShieldCheck :size="16" class="ob-setting-icon" aria-hidden="true" />
               <span class="ob-setting-title" v-text="ot('ksToggle')"></span>
             </div>
-            <button type="button" class="ob-toggle" :class="{ 'ob-toggle--on': killSwitchOn }" @click="killSwitchOn = !killSwitchOn" role="switch" :aria-checked="killSwitchOn">
+            <button
+              type="button"
+              class="ob-toggle"
+              :class="{ 'ob-toggle--on': killSwitchOn }"
+              @click="killSwitchOn = !killSwitchOn"
+              role="switch"
+              :aria-checked="killSwitchOn"
+            >
               <span class="ob-toggle-thumb" :class="{ 'ob-toggle-thumb--on': killSwitchOn }"></span>
             </button>
           </div>
           <div class="ob-actions rise" style="--d: 0.58s">
-            <button type="button" class="ob-btn ob-btn--primary" @click="step = 6" v-text="ot('next')"></button>
+            <button
+              type="button"
+              class="ob-btn ob-btn--primary"
+@click="step = 7"
+              v-text="ot('next')"
+            ></button>
           </div>
         </section>
 
-        <section v-else-if="step === 6" key="alwayson" class="ob-card">
+        <section v-else-if="step === 7" key="alwayson" class="ob-card">
           <div class="ob-head">
             <div class="ob-badge rise" style="--d: 0.05s">
               <Lock :size="22" aria-hidden="true" />
             </div>
-            <h2 class="ob-title rise" style="--d: 0.14s" v-text="ot('aoTitle')"></h2>
-            <p class="ob-sub rise" style="--d: 0.24s" v-text="ot('aoWhat')"></p>
+            <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('aoTitle')"></h2>
+            <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('aoWhat')"></p>
           </div>
-          <div class="ob-cols rise" style="--d: 0.34s">
+          <div class="ob-cols rise" style="--d: 0.13s">
             <div class="ob-col ob-col--good">
               <p class="ob-col-title">
                 <ThumbsUp :size="13" aria-hidden="true" />
@@ -303,31 +487,104 @@
               </ul>
             </div>
           </div>
-          <p class="ob-fit rise" style="--d: 0.42s"><strong v-text="ot('fitFor')"></strong> <span v-text="ot('aoFor')"></span></p>
-          <p class="ob-fit rise" style="--d: 0.46s"><strong v-text="ot('notFor')"></strong> <span v-text="ot('aoNot')"></span></p>
+          <p class="ob-fit rise" style="--d: 0.42s">
+            <strong v-text="ot('fitFor')"></strong>
+            <span v-text="ot('aoFor')"></span>
+          </p>
+          <p class="ob-fit rise" style="--d: 0.16s">
+            <strong v-text="ot('notFor')"></strong>
+            <span v-text="ot('aoNot')"></span>
+          </p>
           <div class="ob-setting rise" style="--d: 0.52s">
             <div class="ob-setting-left">
               <Lock :size="16" class="ob-setting-icon" aria-hidden="true" />
               <span class="ob-setting-title" v-text="ot('aoToggle')"></span>
             </div>
-            <button type="button" class="ob-toggle" :class="{ 'ob-toggle--on': alwaysOnOn }" @click="alwaysOnOn = !alwaysOnOn" role="switch" :aria-checked="alwaysOnOn">
+            <button
+              type="button"
+              class="ob-toggle"
+              :class="{ 'ob-toggle--on': alwaysOnOn }"
+              @click="alwaysOnOn = !alwaysOnOn"
+              role="switch"
+              :aria-checked="alwaysOnOn"
+            >
               <span class="ob-toggle-thumb" :class="{ 'ob-toggle-thumb--on': alwaysOnOn }"></span>
             </button>
           </div>
           <p v-if="alwaysOnOn" class="ob-fineprint" v-text="ot('aoNote')"></p>
           <div class="ob-actions rise" style="--d: 0.58s">
-            <button type="button" class="ob-btn ob-btn--primary" @click="step = 7" v-text="ot('next')"></button>
+            <button
+              type="button"
+              class="ob-btn ob-btn--primary"
+@click="step = 8"
+              v-text="ot('next')"
+            ></button>
           </div>
         </section>
 
-        <section v-else-if="step === 7" key="subscription" class="ob-card ob-card--hero">
+        <section v-else-if="step === 8" key="privacy" class="ob-card">
+          <div class="ob-head">
+            <div class="ob-badge rise" style="--d: 0.05s">
+              <BarChart3 :size="22" aria-hidden="true" />
+            </div>
+            <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('tmTitle')"></h2>
+            <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('tmSub')"></p>
+          </div>
+          <div class="ob-cols rise" style="--d: 0.13s">
+            <div class="ob-col ob-col--good">
+              <p class="ob-col-title">
+                <ThumbsUp :size="13" aria-hidden="true" />
+                <span v-text="ot('tmYesTitle')"></span>
+              </p>
+              <ul>
+                <li v-for="(line, i) in tmYes" :key="i" v-text="line"></li>
+              </ul>
+            </div>
+            <div class="ob-col ob-col--bad">
+              <p class="ob-col-title">
+                <ThumbsDown :size="13" aria-hidden="true" />
+                <span v-text="ot('tmNoTitle')"></span>
+              </p>
+              <ul>
+                <li v-for="(line, i) in tmNo" :key="i" v-text="line"></li>
+              </ul>
+            </div>
+          </div>
+          <div class="ob-setting rise" style="--d: 0.16s">
+            <div class="ob-setting-left">
+              <BarChart3 :size="16" class="ob-setting-icon" aria-hidden="true" />
+              <span class="ob-setting-title" v-text="ot('tmToggle')"></span>
+            </div>
+            <button
+              type="button"
+              class="ob-toggle"
+              :class="{ 'ob-toggle--on': telemetryOn }"
+              @click="telemetryOn = !telemetryOn"
+              role="switch"
+              :aria-checked="telemetryOn"
+            >
+              <span class="ob-toggle-thumb" :class="{ 'ob-toggle-thumb--on': telemetryOn }"></span>
+            </button>
+          </div>
+          <p class="ob-fineprint rise" style="--d: 0.56s" v-text="ot('tmNote')"></p>
+          <div class="ob-actions rise" style="--d: 0.62s">
+            <button
+              type="button"
+              class="ob-btn ob-btn--primary"
+@click="step = 9"
+              v-text="ot('next')"
+            ></button>
+          </div>
+        </section>
+
+        <section v-else-if="step === 9" key="subscription" class="ob-card ob-card--hero">
           <div class="ob-badge ob-badge--success rise" style="--d: 0.05s">
             <Rocket :size="22" aria-hidden="true" />
           </div>
-          <h2 class="ob-title ob-title--big rise" style="--d: 0.14s" v-text="ot('subTitle')"></h2>
-          <p class="ob-sub rise" style="--d: 0.24s" v-text="ot('subSub')"></p>
-          <div class="ob-pills rise" style="--d: 0.36s">
-            <button type="button" class="ob-pill ob-pill--glow" @click="step = 8">
+          <h2 class="ob-title ob-title--big rise" style="--d: 0.06s" v-text="ot('subTitle')"></h2>
+          <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('subSub')"></p>
+          <div class="ob-pills rise" style="--d: 0.06s">
+            <button type="button" class="ob-pill ob-pill--glow" @click="step = 10">
               <span class="ob-pill-glyph">
                 <Link2 :size="15" aria-hidden="true" />
               </span>
@@ -354,10 +611,10 @@
             <div class="ob-badge rise" style="--d: 0.05s">
               <Link2 :size="22" aria-hidden="true" />
             </div>
-            <h2 class="ob-title rise" style="--d: 0.14s" v-text="ot('coachTitle')"></h2>
-            <p class="ob-sub rise" style="--d: 0.24s" v-text="ot('coachSub')"></p>
+            <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('coachTitle')"></h2>
+            <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('coachSub')"></p>
           </div>
-          <div class="ob-coach rise" style="--d: 0.34s">
+          <div class="ob-coach rise" style="--d: 0.13s">
             <div class="ob-bubble">
               <span v-text="ot('coachStep1')"></span>
               <ArrowDown :size="14" class="ob-bubble-arrow" aria-hidden="true" />
@@ -371,31 +628,38 @@
               <span v-text="ot('coachStep2')"></span>
             </div>
           </div>
-          <div class="ob-actions rise" style="--d: 0.5s">
-            <button type="button" class="ob-btn ob-btn--primary" :disabled="finishing" @click="finalize(true)" v-text="ot('coachGo')"></button>
+          <div class="ob-actions rise" style="--d: 0.16s">
+            <button
+              type="button"
+              class="ob-btn ob-btn--primary"
+              :disabled="finishing"
+              @click="finalize(true)"
+              v-text="ot('coachGo')"
+            ></button>
           </div>
         </section>
       </Transition>
     </main>
 
     <footer v-if="step > 0" class="ob-footer">
-      <button v-if="step < 8" type="button" class="ob-back" @click="goBack">
+      <button v-if="step < 10" type="button" class="ob-back" @click="goBack">
         <ArrowLeft :size="14" aria-hidden="true" />
         <span v-text="ot('back')"></span>
       </button>
       <div class="ob-dots" aria-hidden="true">
-        <span v-for="i in 7" :key="i" class="ob-dot" :class="{ 'ob-dot--on': step >= i }"></span>
+        <span v-for="i in 9" :key="i" class="ob-dot" :class="{ 'ob-dot--on': step >= i }"></span>
       </div>
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
 import {
   Languages,
+  BarChart3,
   Gamepad2,
   AppWindow,
   LayoutGrid,
@@ -416,7 +680,9 @@ import {
   ArrowUp,
   ArrowLeft,
   ArrowRight,
-} from 'lucide-vue-next';
+  HardDriveDownload,
+  Loader2,
+} from '../lib/appIcons';
 import { useVpnStore } from '../stores/vpn';
 import { useAppIcon } from '../composables/useAppIcon';
 import { t, setLanguage } from '../i18n';
@@ -434,10 +700,42 @@ interface RunningApp {
   path: string;
 }
 
-const emit = defineEmits<{ (e: 'done', payload: { goToServers: boolean }): void }>();
+const emit = defineEmits<{
+  (e: 'done', payload: { goToServers: boolean }): void;
+}>();
 
 const store = useVpnStore();
 const { iconSrc } = useAppIcon();
+
+const booted = ref(false);
+let bootRaf = 0;
+
+onMounted(() => {
+  const reveal = () => {
+    bootRaf = requestAnimationFrame(() => {
+      bootRaf = requestAnimationFrame(() => {
+        booted.value = true;
+      });
+    });
+  };
+  const fonts = (document as any).fonts;
+  if (fonts && typeof fonts.ready?.then === 'function') {
+    let settled = false;
+    const go = () => {
+      if (settled) return;
+      settled = true;
+      reveal();
+    };
+    fonts.ready.then(go).catch(go);
+    setTimeout(go, 400);
+  } else {
+    reveal();
+  }
+});
+
+onBeforeUnmount(() => {
+  if (bootRaf) cancelAnimationFrame(bootRaf);
+});
 
 const step = ref(0);
 
@@ -456,6 +754,7 @@ const picked = ref<RunningApp[]>([]);
 const discordOn = ref(true);
 const killSwitchOn = ref(true);
 const alwaysOnOn = ref(false);
+const telemetryOn = ref(false);
 const finishing = ref(false);
 
 const icons = reactive<Record<string, string>>({});
@@ -468,6 +767,8 @@ const ksPros = computed(() => [ot('ksPros1'), ot('ksPros2'), ot('ksPros3')]);
 const ksCons = computed(() => [ot('ksCons1'), ot('ksCons2')]);
 const aoPros = computed(() => [ot('aoPros1'), ot('aoPros2'), ot('aoPros3')]);
 const aoCons = computed(() => [ot('aoCons1'), ot('aoCons2')]);
+const tmYes = computed(() => [ot('tmYes1'), ot('tmYes2'), ot('tmYes3')]);
+const tmNo = computed(() => [ot('tmNo1'), ot('tmNo2'), ot('tmNo3')]);
 
 function chooseLanguage(next: 'ru' | 'en') {
   setLanguage(next);
@@ -479,13 +780,120 @@ function goBack() {
   if (step.value > 0) step.value -= 1;
 }
 
+
+
+interface ForeignSub {
+  name: string;
+  url: string | null;
+  inlineLinks: string[];
+}
+
+const MIG_CLIENTS = ['v2rayN', 'Clash Verge', 'Clash / mihomo', 'Nekoray', 'Hiddify'];
+
+const migState = ref<'scanning' | 'found' | 'none'>('scanning');
+const migLaunched = ref(false);
+const migFound = ref<ForeignSub[]>([]);
+const migSkipped = reactive(new Set<string>());
+const migImporting = ref(false);
+const migClientLabel = ref(MIG_CLIENTS[0]);
+let migLabelTimer = 0;
+
+watch(step, (value) => {
+  if (value === 2 && !migLaunched.value) {
+    migLaunched.value = true;
+    void startMigrationScan();
+  }
+});
+
+async function startMigrationScan() {
+  migState.value = 'scanning';
+  let idx = 0;
+  migClientLabel.value = MIG_CLIENTS[0];
+  migLabelTimer = window.setInterval(() => {
+    idx += 1;
+    migClientLabel.value = MIG_CLIENTS[idx % MIG_CLIENTS.length];
+  }, 460);
+
+  let result: { subscriptions: ForeignSub[] } | null = null;
+  try {
+    result = await invoke<{ clients: unknown[]; subscriptions: ForeignSub[] }>(
+      'scan_foreign_clients',
+    );
+  } catch {}
+
+  
+  const elapsed = idx * 460;
+  if (elapsed < 2000) {
+    await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+  }
+  window.clearInterval(migLabelTimer);
+
+  const importable = (result?.subscriptions ?? []).filter(
+    (sub) => typeof sub.url === 'string' && sub.url.length > 10,
+  );
+  if (importable.length === 0) {
+    migState.value = 'none';
+    return;
+  }
+  migFound.value = importable.slice(0, 12);
+  migState.value = 'found';
+}
+
+function rowKey(i: number): string {
+  return `${migFound.value[i]?.name ?? ''}#${i}`;
+}
+
+function toggleMigRow(i: number) {
+  const key = rowKey(i);
+  if (migSkipped.has(key)) migSkipped.delete(key);
+  else migSkipped.add(key);
+}
+
+const migPicked = computed(() => migFound.value.length - migSkipped.size);
+
+function shortUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return url.slice(0, 40);
+  }
+}
+
+async function commitMigration() {
+  if (migImporting.value) return;
+  migImporting.value = true;
+  try {
+    for (let i = 0; i < migFound.value.length; i++) {
+      if (migSkipped.has(rowKey(i))) continue;
+      const sub = migFound.value[i];
+      if (!sub.url) continue;
+      try {
+        const preview = await store.fetchSubscriptionPreview(sub.url);
+        if (preview.servers.length > 0) {
+          store.addSubscription(sub.url, sub.name, preview.servers);
+        }
+      } catch {}
+    }
+  } finally {
+    migImporting.value = false;
+  }
+  step.value = 3;
+}
+
+function skipMigration() {
+  step.value = 3;
+}
+
 async function fetchIcons(paths: string[]) {
   const missing = [...new Set(paths.filter((path) => path && !icons[path]))].slice(0, 400);
   if (missing.length === 0) return;
   for (let at = 0; at < missing.length; at += 64) {
     const slice = missing.slice(at, at + 64);
     try {
-      const loaded = await invoke<Array<string | null>>('collect_app_icons', { paths: slice });
+      const loaded = await invoke<Array<string | null>>('collect_app_icons', {
+        paths: slice,
+      });
       loaded.forEach((image, index) => {
         if (image) icons[slice[index]] = image;
       });
@@ -526,7 +934,7 @@ async function commitGames() {
       await store.addBypassApps(paths);
     } catch {}
   }
-  step.value = 3;
+  step.value = 4;
 }
 
 async function openProcessTab() {
@@ -593,7 +1001,7 @@ async function commitPicked() {
       await store.addBypassApps(paths);
     } catch {}
   }
-  step.value = 4;
+  step.value = 5;
 }
 
 function shortPath(path: string): string {
@@ -609,6 +1017,7 @@ async function finalize(goToServers: boolean) {
     store.updateSettings({
       kill_switch: killSwitchOn.value,
       discord_rpc: discordOn.value,
+      telemetry: telemetryOn.value,
     });
     if (alwaysOnOn.value) {
       await store.setAlwaysOn(true);
@@ -616,10 +1025,102 @@ async function finalize(goToServers: boolean) {
   } catch {}
   emit('done', { goToServers });
 }
-
 </script>
 
 <style scoped>
+
+
+.ob-mig-scan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 34px 0;
+}
+
+.ob-mig-orb {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px solid rgba(167, 139, 250, 0.16);
+  border-top-color: rgba(167, 139, 250, 0.9);
+  animation: migSpin 1.05s linear infinite;
+}
+
+.ob-mig-orb::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124, 92, 255, 0.22), transparent 68%);
+  animation: migPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes migSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes migPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+.ob-mig-status {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--foreground);
+  letter-spacing: 0.01em;
+}
+
+.ob-mig-client {
+  margin: 0;
+  min-height: 18px;
+  font-size: 11px;
+  color: rgba(235, 238, 250, 0.42);
+  transition:
+    opacity 200ms ease,
+    filter 220ms ease,
+    transform 220ms ease;
+}
+
+.ob-mig-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.ob-row-meta {
+  font-size: 10px;
+  color: rgba(235, 238, 250, 0.38);
+}
+</style>
+
+<style scoped>
+.ob-shell {
+  opacity: 0;
+  transition: opacity 0.32s ease;
+}
+
+.ob-shell--booted {
+  opacity: 1;
+}
+
+.ob-stage-inner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .ob-shell {
   position: fixed;
   inset: 0;
@@ -633,8 +1134,10 @@ async function finalize(goToServers: boolean) {
   overflow: hidden;
 }
 
-.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
 
 .ob-vignette {
   position: absolute;
@@ -646,20 +1149,16 @@ async function finalize(goToServers: boolean) {
 
 .rise {
   opacity: 0;
-  animation: ob-rise 0.65s cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
+  animation: ob-rise 0.24s ease-out forwards;
   animation-delay: var(--d, 0s);
 }
 
 @keyframes ob-rise {
   from {
     opacity: 0;
-    transform: translateY(16px);
-    filter: blur(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
   }
 }
 
@@ -673,9 +1172,21 @@ async function finalize(goToServers: boolean) {
   flex-shrink: 0;
 }
 
-.ob-wordmark { display: flex; align-items: center; gap: 9px; }
-.ob-logo { width: 22px; height: 22px; object-fit: contain; }
-.ob-name { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
+.ob-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.ob-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+.ob-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
 
 .ob-step {
   font-size: 11px;
@@ -712,8 +1223,6 @@ async function finalize(goToServers: boolean) {
   margin-bottom: 14px;
 }
 
-
-
 .ob-intro-logo {
   width: 88px;
   height: 88px;
@@ -724,8 +1233,13 @@ async function finalize(goToServers: boolean) {
 }
 
 @keyframes ob-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-9px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
 }
 
 .ob-hero-title {
@@ -738,7 +1252,9 @@ async function finalize(goToServers: boolean) {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: ob-rise 0.65s cubic-bezier(0.22, 0.9, 0.3, 1) forwards, ob-shimmer 6s ease-in-out 1.4s infinite;
+  animation:
+    ob-rise 0.65s cubic-bezier(0.22, 0.9, 0.3, 1) forwards,
+    ob-shimmer 6s ease-in-out 1.4s infinite;
 }
 
 .ob-hero-sub {
@@ -757,8 +1273,12 @@ async function finalize(goToServers: boolean) {
 }
 
 @keyframes ob-shimmer {
-  0% { background-position: 130% 0; }
-  100% { background-position: -130% 0; }
+  0% {
+    background-position: 130% 0;
+  }
+  100% {
+    background-position: -130% 0;
+  }
 }
 
 .ob-card {
@@ -771,8 +1291,8 @@ async function finalize(goToServers: boolean) {
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   background: rgba(10, 11, 20, 0.34);
-  backdrop-filter: blur(7px) saturate(120%);
-  -webkit-backdrop-filter: blur(7px) saturate(120%);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.07),
     0 18px 44px rgba(0, 0, 0, 0.4);
@@ -780,7 +1300,7 @@ async function finalize(goToServers: boolean) {
   flex-direction: column;
   gap: 14px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.08) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
 .ob-card--hero {
@@ -790,7 +1310,11 @@ async function finalize(goToServers: boolean) {
   padding-bottom: 36px;
 }
 
-.ob-head { display: flex; flex-direction: column; gap: 6px; }
+.ob-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .ob-badge {
   width: 46px;
@@ -806,8 +1330,12 @@ async function finalize(goToServers: boolean) {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.ob-badge--danger { color: rgba(235, 238, 250, 0.75); }
-.ob-badge--success { color: rgba(235, 238, 250, 0.75); }
+.ob-badge--danger {
+  color: rgba(235, 238, 250, 0.75);
+}
+.ob-badge--success {
+  color: rgba(235, 238, 250, 0.75);
+}
 
 .ob-title {
   margin: 0;
@@ -819,10 +1347,14 @@ async function finalize(goToServers: boolean) {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: ob-rise 0.65s cubic-bezier(0.22, 0.9, 0.3, 1) forwards, ob-shimmer 7s ease-in-out 1.2s infinite;
+  animation:
+    ob-rise 0.65s cubic-bezier(0.22, 0.9, 0.3, 1) forwards,
+    ob-shimmer 7s ease-in-out 1.2s infinite;
 }
 
-.ob-title--big { font-size: 26px; }
+.ob-title--big {
+  font-size: 26px;
+}
 
 .ob-sub {
   font-size: 13px;
@@ -852,7 +1384,10 @@ async function finalize(goToServers: boolean) {
   margin: 0;
 }
 
-.ob-fit strong { color: rgba(235, 238, 250, 0.85); font-weight: 600; }
+.ob-fit strong {
+  color: rgba(235, 238, 250, 0.85);
+  font-weight: 600;
+}
 
 .ob-lang {
   display: flex;
@@ -874,7 +1409,9 @@ async function finalize(goToServers: boolean) {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: ob-rise 0.65s cubic-bezier(0.22, 0.9, 0.3, 1) forwards, ob-shimmer 7s ease-in-out 1.2s infinite;
+  animation:
+    ob-rise 0.65s cubic-bezier(0.22, 0.9, 0.3, 1) forwards,
+    ob-shimmer 7s ease-in-out 1.2s infinite;
 }
 
 .ob-lang-opts {
@@ -893,23 +1430,32 @@ async function finalize(goToServers: boolean) {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.055);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(11px);
+  -webkit-backdrop-filter: blur(11px);
   color: var(--foreground);
   cursor: pointer;
   font-family: var(--font-sans);
-  transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1), border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1),
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .ob-lang-btn:hover {
   transform: translateY(-3px) scale(1.015);
   border-color: rgba(167, 139, 250, 0.55);
   background: rgba(167, 139, 250, 0.1);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.35), 0 0 28px rgba(167,139,250,0.14), inset 0 1px 0 rgba(255,255,255,0.1);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    0 0 28px rgba(167, 139, 250, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.ob-lang-btn:active { transform: scale(0.97); }
+.ob-lang-btn:active {
+  transform: scale(0.97);
+}
 
 .ob-lang-label {
   font-size: 16px;
@@ -945,19 +1491,33 @@ async function finalize(goToServers: boolean) {
   cursor: pointer;
   font-family: var(--font-sans);
   text-align: left;
-  transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1), border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1),
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .ob-pill:hover {
   transform: translateX(4px);
   border-color: rgba(167, 139, 250, 0.5);
   background: rgba(167, 139, 250, 0.1);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32), 0 0 20px rgba(167, 139, 250, 0.12);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.32),
+    0 0 20px rgba(167, 139, 250, 0.12);
 }
 
-.ob-pill:hover .ob-pill-arrow { opacity: 1; transform: translateX(2px); }
-.ob-pill:active { transform: translateX(2px) scale(0.985); }
-.ob-pill:disabled { opacity: 0.6; cursor: default; }
+.ob-pill:hover .ob-pill-arrow {
+  opacity: 1;
+  transform: translateX(2px);
+}
+.ob-pill:active {
+  transform: translateX(2px) scale(0.985);
+}
+.ob-pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 .ob-pill--glow {
   border-color: rgba(167, 139, 250, 0.42);
@@ -983,14 +1543,22 @@ async function finalize(goToServers: boolean) {
   min-width: 0;
 }
 
-.ob-pill-name { font-size: 13.5px; font-weight: 600; }
-.ob-pill-hint { font-size: 11px; color: rgba(235, 238, 250, 0.45); }
+.ob-pill-name {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ob-pill-hint {
+  font-size: 11px;
+  color: rgba(235, 238, 250, 0.45);
+}
 
 .ob-pill-arrow {
   margin-left: auto;
   flex-shrink: 0;
   opacity: 0.45;
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 
 .ob-actions {
@@ -1021,7 +1589,11 @@ async function finalize(goToServers: boolean) {
   font-weight: 700;
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.2s ease, box-shadow 0.25s ease, background 0.2s ease;
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1),
+    opacity 0.2s ease,
+    box-shadow 0.25s ease,
+    background 0.2s ease;
 }
 
 .ob-btn--primary {
@@ -1046,8 +1618,13 @@ async function finalize(goToServers: boolean) {
   transform: translateY(-2px);
 }
 
-.ob-btn:active:not(:disabled) { transform: scale(0.96); }
-.ob-btn:disabled { opacity: 0.45; cursor: default; }
+.ob-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.ob-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 
 .ob-wait {
   display: flex;
@@ -1066,9 +1643,16 @@ async function finalize(goToServers: boolean) {
   flex-shrink: 0;
 }
 
-@keyframes ob-spin { to { transform: rotate(360deg); } }
+@keyframes ob-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
-.ob-wait-text { font-size: 13px; color: rgba(235, 238, 250, 0.6); }
+.ob-wait-text {
+  font-size: 13px;
+  color: rgba(235, 238, 250, 0.6);
+}
 
 .ob-list {
   display: flex;
@@ -1080,7 +1664,9 @@ async function finalize(goToServers: boolean) {
   background: rgba(0, 0, 0, 0.18);
 }
 
-.ob-list--tall { max-height: 260px; }
+.ob-list--tall {
+  max-height: 260px;
+}
 
 .ob-row {
   display: flex;
@@ -1097,10 +1683,18 @@ async function finalize(goToServers: boolean) {
   transition: background 0.18s ease;
 }
 
-.ob-row:last-child { border-bottom: none; }
-.ob-row:hover { background: rgba(255, 255, 255, 0.045); }
-.ob-row--picked { background: rgba(167, 139, 250, 0.08); }
-.ob-row--picked:hover { background: rgba(167, 139, 250, 0.12); }
+.ob-row:last-child {
+  border-bottom: none;
+}
+.ob-row:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+.ob-row--picked {
+  background: rgba(167, 139, 250, 0.08);
+}
+.ob-row--picked:hover {
+  background: rgba(167, 139, 250, 0.12);
+}
 
 .ob-row-icon {
   width: 30px;
@@ -1114,7 +1708,11 @@ async function finalize(goToServers: boolean) {
   flex-shrink: 0;
 }
 
-.ob-row-icon img { width: 22px; height: 22px; object-fit: contain; }
+.ob-row-icon img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
 
 .ob-row-letter {
   font-size: 13px;
@@ -1184,8 +1782,8 @@ async function finalize(goToServers: boolean) {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   align-self: flex-start;
 }
 
@@ -1210,8 +1808,15 @@ async function finalize(goToServers: boolean) {
   color: var(--foreground);
 }
 
-.ob-pane { display: flex; flex-direction: column; gap: 10px; }
-.ob-pane--file { align-items: flex-start; padding: 8px 0; }
+.ob-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ob-pane--file {
+  align-items: flex-start;
+  padding: 8px 0;
+}
 
 .ob-search {
   position: relative;
@@ -1236,7 +1841,9 @@ async function finalize(goToServers: boolean) {
   font-size: 13px;
   font-family: var(--font-sans);
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .ob-search-input:focus {
@@ -1244,7 +1851,9 @@ async function finalize(goToServers: boolean) {
   box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.12);
 }
 
-.ob-search-input::placeholder { color: rgba(235, 238, 250, 0.35); }
+.ob-search-input::placeholder {
+  color: rgba(235, 238, 250, 0.35);
+}
 
 .ob-chips {
   display: flex;
@@ -1266,11 +1875,21 @@ async function finalize(goToServers: boolean) {
 }
 
 @keyframes ob-pop {
-  from { opacity: 0; transform: scale(0.8); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.ob-chip img { width: 15px; height: 15px; object-fit: contain; }
+.ob-chip img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
 
 .ob-chip-x {
   display: flex;
@@ -1286,7 +1905,9 @@ async function finalize(goToServers: boolean) {
   transition: background 0.18s ease;
 }
 
-.ob-chip-x:hover { background: rgba(255, 255, 255, 0.2); }
+.ob-chip-x:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
 
 .ob-setting {
   display: flex;
@@ -1299,9 +1920,20 @@ async function finalize(goToServers: boolean) {
   background: rgba(255, 255, 255, 0.035);
 }
 
-.ob-setting-left { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.ob-setting-icon { color: rgba(235, 238, 250, 0.55); flex-shrink: 0; }
-.ob-setting-title { font-size: 13px; font-weight: 500; }
+.ob-setting-left {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.ob-setting-icon {
+  color: rgba(235, 238, 250, 0.55);
+  flex-shrink: 0;
+}
+.ob-setting-title {
+  font-size: 13px;
+  font-weight: 500;
+}
 
 .ob-toggle {
   position: relative;
@@ -1313,7 +1945,9 @@ async function finalize(goToServers: boolean) {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.25s ease, border-color 0.25s ease;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease;
 }
 
 .ob-toggle--on {
@@ -1333,7 +1967,9 @@ async function finalize(goToServers: boolean) {
   transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
-.ob-toggle-thumb--on { transform: translateX(20px); }
+.ob-toggle-thumb--on {
+  transform: translateX(20px);
+}
 
 .ob-cols {
   display: grid;
@@ -1348,8 +1984,12 @@ async function finalize(goToServers: boolean) {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.ob-col--good { border-color: color-mix(in oklch, var(--success) 25%, transparent); }
-.ob-col--bad { border-color: color-mix(in oklch, var(--destructive) 22%, transparent); }
+.ob-col--good {
+  border-color: color-mix(in oklch, var(--success) 25%, transparent);
+}
+.ob-col--bad {
+  border-color: color-mix(in oklch, var(--destructive) 22%, transparent);
+}
 
 .ob-col-title {
   display: flex;
@@ -1362,8 +2002,12 @@ async function finalize(goToServers: boolean) {
   letter-spacing: 0.05em;
 }
 
-.ob-col--good .ob-col-title { color: var(--success); }
-.ob-col--bad .ob-col-title { color: var(--destructive); }
+.ob-col--good .ob-col-title {
+  color: var(--success);
+}
+.ob-col--bad .ob-col-title {
+  color: var(--destructive);
+}
 
 .ob-col ul {
   margin: 0;
@@ -1426,10 +2070,25 @@ async function finalize(goToServers: boolean) {
   border: 4px solid #232428;
 }
 
-.dc-body { padding: 10px 14px 14px; }
-.dc-name { margin: 0; font-size: 15px; font-weight: 700; color: #f2f3f5; }
-.dc-handle { margin: 1px 0 0; font-size: 11.5px; color: #b5bac1; }
-.dc-about { margin: 8px 0 0; font-size: 12px; color: #dbdee1; }
+.dc-body {
+  padding: 10px 14px 14px;
+}
+.dc-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f2f3f5;
+}
+.dc-handle {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  color: #b5bac1;
+}
+.dc-about {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #dbdee1;
+}
 
 .dc-activity {
   margin-top: 10px;
@@ -1446,7 +2105,11 @@ async function finalize(goToServers: boolean) {
   color: #b5bac1;
 }
 
-.dc-activity-row { display: flex; gap: 9px; align-items: center; }
+.dc-activity-row {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
 
 .dc-activity-icon {
   width: 58px;
@@ -1457,12 +2120,34 @@ async function finalize(goToServers: boolean) {
   flex-shrink: 0;
 }
 
-.dc-activity-icon img { width: 100%; height: 100%; object-fit: cover; }
+.dc-activity-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
-.dc-activity-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.dc-activity-name { font-size: 13px; font-weight: 700; color: #f2f3f5; }
-.dc-activity-state { font-size: 11px; color: #b5bac1; }
-.dc-activity-time { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: #23a55a; }
+.dc-activity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dc-activity-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f2f3f5;
+}
+.dc-activity-state {
+  font-size: 11px;
+  color: #b5bac1;
+}
+.dc-activity-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: #23a55a;
+}
 
 .dc-message-btn {
   margin-top: 11px;
@@ -1475,7 +2160,13 @@ async function finalize(goToServers: boolean) {
   text-align: center;
 }
 
-.dc-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; justify-content: center; }
+.dc-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  justify-content: center;
+}
 
 .dc-caption {
   margin: 0;
@@ -1501,9 +2192,18 @@ async function finalize(goToServers: boolean) {
   object-fit: cover;
 }
 
-.dc-member-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dc-member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 
-.dc-member-name { font-size: 12.5px; font-weight: 600; color: #f2f3f5; }
+.dc-member-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #f2f3f5;
+}
 
 .dc-member-game {
   display: inline-flex;
@@ -1513,7 +2213,9 @@ async function finalize(goToServers: boolean) {
   color: #b5bac1;
 }
 
-.dc-member-game svg { color: #23a55a; }
+.dc-member-game svg {
+  color: #23a55a;
+}
 
 .ob-coach {
   display: flex;
@@ -1535,7 +2237,9 @@ async function finalize(goToServers: boolean) {
   color: rgba(235, 238, 250, 0.85);
 }
 
-.ob-bubble--below { align-self: flex-end; }
+.ob-bubble--below {
+  align-self: flex-end;
+}
 
 .ob-bubble-arrow {
   color: #a78bfa;
@@ -1544,8 +2248,13 @@ async function finalize(goToServers: boolean) {
 }
 
 @keyframes ob-nudge {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(4px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
 }
 
 .ob-mock {
@@ -1560,8 +2269,13 @@ async function finalize(goToServers: boolean) {
 }
 
 @keyframes ob-glowpulse {
-  0%, 100% { box-shadow: 0 0 0 rgba(167, 139, 250, 0); }
-  50% { box-shadow: 0 0 22px rgba(167, 139, 250, 0.22); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(167, 139, 250, 0);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(167, 139, 250, 0.22);
+  }
 }
 
 .ob-mock-input {
@@ -1619,7 +2333,11 @@ async function finalize(goToServers: boolean) {
   color: var(--foreground);
 }
 
-.ob-dots { display: flex; gap: 7px; margin-left: auto; }
+.ob-dots {
+  display: flex;
+  gap: 7px;
+  margin-left: auto;
+}
 
 .ob-dot {
   width: 7px;
@@ -1636,33 +2354,24 @@ async function finalize(goToServers: boolean) {
 }
 
 .pane-enter-active {
-  transition:
-    opacity 0.44s ease,
-    transform 0.44s cubic-bezier(0.34, 1.3, 0.64, 1),
-    filter 0.44s ease;
+  transition: opacity 0.16s ease;
 }
 
 .pane-leave-active {
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease,
-    filter 0.22s ease;
+  transition: opacity 0.12s ease;
 }
 
 .pane-enter-from {
   opacity: 0;
-  transform: translateY(20px) scale(0.97);
-  filter: blur(8px);
 }
 
 .pane-leave-to {
   opacity: 0;
-  transform: translateY(-12px) scale(0.985);
-  filter: blur(5px);
 }
 
 @media (max-width: 640px) {
-  .dc-stage { grid-template-columns: 1fr; }
+  .dc-stage {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
-

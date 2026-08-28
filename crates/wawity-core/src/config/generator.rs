@@ -4,8 +4,19 @@ use crate::config::parser::{
 };
 use crate::constants::LOCAL_PROXY_PORT;
 use crate::error::VpnError;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::path::PathBuf;
+
+thread_local! {
+    
+    static MAIN_SELECTOR_MEMBERS: std::cell::RefCell<Option<Vec<ProxyConfig>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+pub const MAIN_SELECTOR_TAG: &str = "wawity-main";
+
+pub const CLASH_API_PORT: u16 = 9097;
 use zeroize::Zeroize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +71,67 @@ impl SplitConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DpiProfile {
+    Off,
+    Soft,
+    Medium,
+    Hard,
+}
+
+impl DpiProfile {
+    pub fn parse(raw: &str) -> Self {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "soft" | "light" | "low" => DpiProfile::Soft,
+            "medium" | "mid" | "balanced" => DpiProfile::Medium,
+            "hard" | "strong" | "max" | "aggressive" => DpiProfile::Hard,
+            _ => DpiProfile::Off,
+        }
+    }
+
+    pub fn mux_streams(self) -> (u64, u64) {
+        match self {
+            DpiProfile::Off => (4, 4),
+            DpiProfile::Soft => (4, 6),
+            DpiProfile::Medium => (6, 8),
+            DpiProfile::Hard => (8, 12),
+        }
+    }
+
+    pub fn packet_fragment(self) -> bool {
+        !matches!(self, DpiProfile::Off)
+    }
+
+    pub fn record_fragment(self) -> bool {
+        matches!(self, DpiProfile::Medium | DpiProfile::Hard)
+    }
+
+    pub fn fallback_delay(self) -> &'static str {
+        match self {
+            DpiProfile::Soft => "300ms",
+            DpiProfile::Medium => "500ms",
+            DpiProfile::Hard => "800ms",
+            DpiProfile::Off => "",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct RouteRuleSpec {
+    #[serde(default)]
+    pub domain: Vec<String>,
+    #[serde(default)]
+    pub domain_suffix: Vec<String>,
+    #[serde(default)]
+    pub domain_keyword: Vec<String>,
+    #[serde(default)]
+    pub ip_cidr: Vec<String>,
+    #[serde(default)]
+    pub process_name: Vec<String>,
+    #[serde(default)]
+    pub action: String,
+}
+
 pub struct ConfigGenerator {
     pub kill_switch: bool,
     pub block_ads: bool,
@@ -82,6 +154,14 @@ pub struct ConfigGenerator {
     pub bootstrap_ip: String,
     pub bootstrap_ip_alt: String,
     pub system_dns: Option<String>,
+    pub dpi_profile: DpiProfile,
+    pub route_rules: Vec<RouteRuleSpec>,
+    pub route_all: bool,
+    pub dns_remote: String,
+    pub dns_custom_doh: Option<String>,
+    pub dns_block_lists: bool,
+    
+    pub main_selector: Option<crate::engine::SelectorOptions>,
 }
 
 impl ConfigGenerator {
@@ -116,11 +196,24 @@ impl ConfigGenerator {
             bootstrap_ip: "1.1.1.1".to_string(),
             bootstrap_ip_alt: "1.0.0.1".to_string(),
             system_dns: None,
+            dpi_profile: DpiProfile::Off,
+            route_rules: Vec::new(),
+            route_all: true,
+            dns_remote: "cloudflare".to_string(),
+            dns_custom_doh: None,
+            dns_block_lists: true,
+            main_selector: None,
         }
     }
 
     pub fn with_ad_blocking(mut self, enabled: bool) -> Self {
         self.block_ads = enabled;
+        self
+    }
+
+    pub fn with_routing(mut self, rules: Vec<RouteRuleSpec>, route_all: bool) -> Self {
+        self.route_rules = rules;
+        self.route_all = route_all;
         self
     }
 
@@ -148,6 +241,11 @@ impl ConfigGenerator {
         self
     }
 
+    pub fn with_dpi(mut self, raw: &str) -> Self {
+        self.dpi_profile = DpiProfile::parse(raw);
+        self
+    }
+
     pub fn with_privacy(
         mut self,
         strict_route: bool,
@@ -170,6 +268,54 @@ impl ConfigGenerator {
 
     pub fn with_system_dns(mut self, server: Option<String>) -> Self {
         self.system_dns = server;
+        self
+    }
+
+    
+    pub fn with_dns_center(
+        mut self,
+        remote: &str,
+        custom_doh: Option<&str>,
+        block_lists: bool,
+    ) -> Self {
+        self.dns_remote = match remote {
+            "google" | "quad9" | "adguard" => remote.to_string(),
+            _ => "cloudflare".to_string(),
+        };
+        let clean = custom_doh
+            .map(|s| s.trim().to_string())
+            .filter(|s| s.starts_with("https://") && !s.is_empty());
+        self.dns_custom_doh = clean;
+        self.dns_block_lists = block_lists;
+        self
+    }
+
+    
+    
+    pub fn with_main_selector(mut self, opts: crate::engine::SelectorOptions) -> Self {
+        if opts.is_empty() {
+            self.main_selector = None;
+            return self;
+        }
+        let mut members: Vec<ProxyConfig> = Vec::new();
+        for url in &opts.urls {
+            if let Ok(cfg) = crate::config::parser::parse_subscription(url) {
+                members.push(cfg);
+            }
+        }
+        if members.len() < 2 {
+            
+            self.main_selector = None;
+            return self;
+        }
+        self.main_selector = Some(crate::engine::SelectorOptions {
+            strategy: if opts.strategy == "urltest" { "urltest".into() } else { "select".into() },
+            urls: Vec::new(),
+        });
+        
+        MAIN_SELECTOR_MEMBERS.with(|slot| {
+            *slot.borrow_mut() = Some(members);
+        });
         self
     }
 
@@ -214,6 +360,50 @@ impl ConfigGenerator {
 
         outbounds.push(self.build_direct_outbound());
 
+        
+        let mut group_tag: Option<String> = None;
+        let selector_members =
+            MAIN_SELECTOR_MEMBERS.with(|slot| slot.borrow().clone());
+        if let Some(members) = selector_members {
+            let mut tags: Vec<String> = vec!["proxy".to_string()];
+            for (i, member) in members.iter().enumerate() {
+                let tag = format!("sel-{}", i);
+                outbounds.push(
+                    self.build_proxy_outbound(member, &tag, None)?,
+                );
+                tags.push(tag);
+            }
+            let mut group = if self
+                .main_selector
+                .as_ref()
+                .map(|s| s.strategy == "urltest")
+                .unwrap_or(false)
+            {
+                json!({
+                    "type": "urltest",
+                    "tag": MAIN_SELECTOR_TAG,
+                    "outbounds": tags,
+                    "url": "https://www.gstatic.com/generate_204",
+                    "interval": "5m",
+                    "tolerance": 60
+                })
+            } else {
+                json!({
+                    "type": "selector",
+                    "tag": MAIN_SELECTOR_TAG,
+                    "outbounds": tags,
+                    "default": "proxy",
+                    "interrupt_exist_connections": true
+                })
+            };
+            if self.default_interface.is_some() && false {
+                
+                let _ = &mut group;
+            }
+            outbounds.push(group);
+            group_tag = Some(MAIN_SELECTOR_TAG.to_string());
+        }
+
         let log_path = std::env::temp_dir()
             .join("wawity.log")
             .to_string_lossy()
@@ -232,13 +422,25 @@ impl ConfigGenerator {
                 self.build_mixed_inbound()
             ],
             "outbounds": outbounds,
-            "route": self.build_route()
+            "route": self.build_route_tuned()
         });
+
+        if let Some(tag) = group_tag {
+            cfg["route"]["final"] = json!(tag);
+            cfg["experimental"] = json!({
+                "clash_api": {
+                    "external_controller": format!("127.0.0.1:{}", CLASH_API_PORT),
+                    "default_mode": "rule"
+                }
+            });
+        }
 
         let rule_sets = self.build_rule_sets();
         if !rule_sets.is_empty() {
             cfg["route"]["rule_set"] = json!(rule_sets);
         }
+
+        MAIN_SELECTOR_MEMBERS.with(|slot| *slot.borrow_mut() = None);
 
         Ok(cfg)
     }
@@ -303,7 +505,9 @@ impl ConfigGenerator {
     fn build_dns(&self) -> Value {
         let mut rules: Vec<Value> = Vec::new();
 
-        if self.ads_enabled() {
+        
+        
+        if self.ads_enabled() && self.dns_block_lists {
             rules.push(json!({
                 "rule_set": ["geosite-category-ads-all"],
                 "action": "reject"
@@ -337,6 +541,14 @@ impl ConfigGenerator {
             }
         }
 
+        let (remote_a, remote_b, doh_port, tls_port): (&str, &str, u16, u16) =
+            match self.dns_remote.as_str() {
+                "google" => ("8.8.8.8", "8.8.4.4", 443, 853),
+                "quad9" => ("9.9.9.9", "149.112.112.112", 443, 853),
+                "adguard" => ("94.140.14.14", "94.140.15.15", 443, 853),
+                _ => ("1.1.1.1", "1.0.0.1", 443, 853),
+            };
+
         let mut bootstrap_doh = json!({
             "type": "https",
             "tag": "bootstrap-dns-doh",
@@ -356,6 +568,27 @@ impl ConfigGenerator {
             "server_port": 53
         });
 
+        let mut remote_doh = json!({
+            "type": "https",
+            "tag": "remote-dns-doh",
+            "server": remote_a,
+            "server_port": doh_port,
+            "detour": "proxy"
+        });
+
+        
+        if let Some(custom) = &self.dns_custom_doh {
+            if let Some(host) = custom
+                .trim_start_matches("https://")
+                .split('/')
+                .next()
+                .filter(|h| !h.is_empty())
+            {
+                let host = host.split(':').next().unwrap_or(host).to_string();
+                remote_doh["server"] = json!(host);
+            }
+        }
+
         if self.default_interface.is_some() {
             bootstrap_doh["detour"] = json!("direct");
             bootstrap_alt["detour"] = json!("direct");
@@ -363,18 +596,12 @@ impl ConfigGenerator {
         }
 
         let mut servers = vec![
-            json!({
-                "type": "https",
-                "tag": "remote-dns-doh",
-                "server": "1.1.1.1",
-                "server_port": 443,
-                "detour": "proxy"
-            }),
+            remote_doh,
             json!({
                 "type": "tls",
                 "tag": "remote-dns",
-                "server": "1.1.1.1",
-                "server_port": 853,
+                "server": remote_b,
+                "server_port": tls_port,
                 "detour": "proxy"
             }),
             bootstrap_doh,
@@ -518,6 +745,81 @@ impl ConfigGenerator {
         names
     }
 
+    fn build_role_rules(&self) -> Vec<Value> {
+        let mut out: Vec<Value> = Vec::new();
+        for spec in &self.route_rules {
+            let mut rule = serde_json::Map::new();
+            let mut matched = false;
+            if !spec.domain.is_empty() {
+                rule.insert("domain".to_string(), json!(spec.domain));
+                matched = true;
+            }
+            if !spec.domain_suffix.is_empty() {
+                rule.insert("domain_suffix".to_string(), json!(spec.domain_suffix));
+                matched = true;
+            }
+            if !spec.domain_keyword.is_empty() {
+                rule.insert("domain_keyword".to_string(), json!(spec.domain_keyword));
+                matched = true;
+            }
+            if !spec.ip_cidr.is_empty() {
+                rule.insert("ip_cidr".to_string(), json!(spec.ip_cidr));
+                matched = true;
+            }
+            if !spec.process_name.is_empty() {
+                rule.insert("process_name".to_string(), json!(spec.process_name));
+                matched = true;
+            }
+            if !matched {
+                continue;
+            }
+            match spec.action.as_str() {
+                "block" => {
+                    rule.insert("action".to_string(), json!("reject"));
+                }
+                "direct" => {
+                    rule.insert("outbound".to_string(), json!("direct"));
+                }
+                _ => {
+                    rule.insert("outbound".to_string(), json!("proxy"));
+                }
+            }
+            out.push(Value::Object(rule));
+        }
+        out
+    }
+
+    fn build_route_tuned(&self) -> Value {
+        let mut route = self.build_route();
+        let frag = self.dpi_profile.packet_fragment();
+        let record = self.dpi_profile.record_fragment();
+        if !frag && !record {
+            return route;
+        }
+
+        let mut rule = json!({
+            "action": "route-options",
+            "network": ["tcp"],
+            "port": [443, 8443]
+        });
+        if frag {
+            rule["tls_fragment"] = json!(true);
+            let delay = self.dpi_profile.fallback_delay();
+            if !delay.is_empty() {
+                rule["tls_fragment_fallback_delay"] = json!(delay);
+            }
+        }
+        if record {
+            rule["tls_record_fragment"] = json!(true);
+        }
+
+        match route.get_mut("rules").and_then(|r| r.as_array_mut()) {
+            Some(rules) => rules.insert(0, rule),
+            None => route["rules"] = json!([rule]),
+        }
+        route
+    }
+
     fn build_route(&self) -> Value {
         let mut rules: Vec<Value> = Vec::new();
 
@@ -587,11 +889,18 @@ impl ConfigGenerator {
             }));
         }
 
-        let tunnel_rest = !self.split_mode.is_include();
+        for rule in self.build_role_rules() {
+            rules.push(rule);
+        }
+
+        let tunnel_rest = !self.split_mode.is_include() && (self.route_all || self.kill_switch);
+
+        let selector_on = MAIN_SELECTOR_MEMBERS.with(|s| s.borrow().is_some());
+        let main_out = if selector_on { MAIN_SELECTOR_TAG } else { "proxy" };
 
         rules.push(json!({
             "inbound": ["mixed-in", "tun-in"],
-            "outbound": if tunnel_rest { "proxy" } else { "direct" }
+            "outbound": if tunnel_rest { main_out } else { "direct" }
         }));
 
         if self.kill_switch && tunnel_rest {
@@ -604,8 +913,8 @@ impl ConfigGenerator {
 
         let final_out = if !tunnel_rest {
             "direct"
-        } else if self.kill_switch {
-            "proxy"
+        } else if self.kill_switch || selector_on {
+            main_out
         } else {
             "direct"
         };
@@ -654,11 +963,12 @@ impl ConfigGenerator {
         }
 
         if self.enable_padding && Self::supports_mux(proxy) {
+            let (links, streams) = self.dpi_profile.mux_streams();
             out["multiplex"] = json!({
                 "enabled": true,
                 "protocol": "h2mux",
-                "max_connections": 4,
-                "min_streams": 4,
+                "max_connections": links,
+                "min_streams": streams,
                 "padding": true
             });
         }

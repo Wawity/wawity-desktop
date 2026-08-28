@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { ShieldAlert, ShieldCheck } from 'lucide-vue-next';
+import { ShieldAlert, ShieldCheck } from '../lib/appIcons';
 import { useConfirmState, settleConfirm } from '../composables/useConfirm';
 
 const state = useConfirmState();

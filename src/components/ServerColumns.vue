@@ -31,19 +31,47 @@
             @click="hop(srv.id)"
           >
             <div class="duo-srv-text">
-              <span class="duo-srv-name" v-text="srv.name"></span>
+              <span class="duo-srv-name">
+                <span class="srv-badge" :style="badgeStyle(srv.id)">
+                  <component :is="badgeGlyph(srv.id)" :size="10" aria-hidden="true" />
+                </span>
+                <span class="srv-label" v-text="srv.name"></span>
+              </span>
               <span class="duo-srv-meta mono" v-text="srvMeta(srv)"></span>
             </div>
             <div class="duo-srv-right">
+              <button
+                type="button"
+                class="fav-btn"
+                :class="{ 'fav-btn--on': vpnStore.isFavorite(srv.id) }"
+                :title="t('servers.favTitle')"
+                @click.stop="vpnStore.toggleFavorite(srv.id)"
+              >
+                <Star :size="12" />
+              </button>
               <button
                 v-if="vpnStore.settings.multihop_enabled"
                 type="button"
                 class="entry-btn"
                 :class="{ 'entry-btn--active': vpnStore.selectedEntryServerId === srv.id }"
                 :title="t('servers.entryTitle')"
-                @click.stop="vpnStore.selectEntryServer(vpnStore.selectedEntryServerId === srv.id ? null : srv.id)"
+                @click.stop="
+                  vpnStore.selectEntryServer(
+                    vpnStore.selectedEntryServerId === srv.id ? null : srv.id,
+                  )
+                "
               >
                 <Shuffle :size="12" />
+              </button>
+              <button
+                type="button"
+                class="copy-ip-btn"
+                :class="{ 'copy-ip-btn--done': copiedId === srv.id }"
+                :title="t('connection.copyIpTitle')"
+                @click.stop="copyServerIp(srv)"
+              >
+                <Check v-if="copiedId === srv.id" :size="12" />
+                <Copy v-else :size="12" />
               </button>
               <span
                 v-if="srv.latencyMs !== null && srv.latencyMs !== undefined"
@@ -65,9 +93,12 @@
 </template>
 
 <script setup lang="ts">
+import { iconByKey, tintSoft } from '../lib/subicons';
 import { ref, computed, watchEffect } from 'vue';
-import { Shuffle, Check } from 'lucide-vue-next';
+import { Shuffle, Check, Copy, Star } from '../lib/appIcons';
 import { useVpnStore } from '../stores/vpn';
+import { showCopyHint } from '../composables/useCopyHint';
+import { writeText } from '@tauri-apps/api/clipboard';
 import { t } from '../i18n';
 import { groupServers, pingTier, type ServerEntry } from '../lib/geo';
 import CountryFlag from './CountryFlag.vue';
@@ -77,17 +108,31 @@ const props = defineProps<{ query: string }>();
 const vpnStore = useVpnStore();
 const picked = ref<string | null>(null);
 const switching = ref(false);
+const copiedId = ref<string | null>(null);
+let copyResetTimer = 0;
+
+async function copyServerIp(srv: ServerEntry) {
+  try {
+    await writeText(srv.server);
+    copiedId.value = srv.id;
+    showCopyHint(t('connection.ipCopied'));
+    if (copyResetTimer) window.clearTimeout(copyResetTimer);
+    copyResetTimer = window.setTimeout(() => {
+      copiedId.value = null;
+    }, 1600);
+  } catch {}
+}
 
 const buckets = computed(() =>
-  groupServers(vpnStore.subscriptions, props.query, vpnStore.settings.language)
+  groupServers(vpnStore.subscriptions, props.query, vpnStore.settings.language),
 );
 
-const current = computed(() => buckets.value.find(b => b.code === picked.value) ?? null);
+const current = computed(() => buckets.value.find((b) => b.code === picked.value) ?? null);
 
 const noMatchText = computed(() => t('servers.noServersMatch', { query: props.query }));
 
 watchEffect(() => {
-  if (!buckets.value.some(b => b.code === picked.value)) {
+  if (!buckets.value.some((b) => b.code === picked.value)) {
     picked.value = buckets.value.length > 0 ? buckets.value[0].code : null;
   }
 });
@@ -110,6 +155,17 @@ async function hop(id: string) {
     switching.value = false;
   }
 }
+
+function badgeGlyph(id: string) {
+  const badge = vpnStore.badgeByServerId[id];
+  return iconByKey(badge ? badge.icon : 'shield');
+}
+
+function badgeStyle(id: string) {
+  const badge = vpnStore.badgeByServerId[id];
+  const tone = badge ? badge.color : '#a78bfa';
+  return { color: tone, background: tintSoft(tone, 0.18) };
+}
 </script>
 
 <style scoped>
@@ -120,8 +176,8 @@ async function hop(id: string) {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(22px) saturate(155%);
-  -webkit-backdrop-filter: blur(22px) saturate(155%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.09),
     inset 0 -1px 0 rgba(0, 0, 0, 0.25),
@@ -152,10 +208,18 @@ async function hop(id: string) {
   color: var(--foreground);
   cursor: pointer;
   text-align: left;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition:
+    background 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    transform 200ms cubic-bezier(0.34, 1.3, 0.64, 1);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40px;
 }
 
-.land-row:hover { background: rgba(255, 255, 255, 0.05); }
+.land-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateX(2px);
+}
 
 .land-row--active {
   border-color: rgba(167, 139, 250, 0.35);
@@ -173,18 +237,47 @@ async function hop(id: string) {
   text-overflow: ellipsis;
 }
 
-.land-count { font-size: 10px; color: var(--muted-foreground); }
+.land-count {
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
 
-.land-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.land-dot.tier-good { background: #5ee69a; box-shadow: 0 0 6px rgba(94, 230, 154, 0.7); }
-.land-dot.tier-ok { background: #f0d36a; box-shadow: 0 0 6px rgba(240, 211, 106, 0.6); }
-.land-dot.tier-slow { background: #ff9f6b; box-shadow: 0 0 6px rgba(255, 159, 107, 0.6); }
-.land-dot.tier-bad { background: #ff8a92; box-shadow: 0 0 6px rgba(255, 138, 146, 0.6); }
-.land-dot.tier-none { background: rgba(255, 255, 255, 0.18); }
+.land-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.land-dot.tier-good {
+  background: #5ee69a;
+  box-shadow: 0 0 6px rgba(94, 230, 154, 0.7);
+}
+.land-dot.tier-ok {
+  background: #f0d36a;
+  box-shadow: 0 0 6px rgba(240, 211, 106, 0.6);
+}
+.land-dot.tier-slow {
+  background: #ff9f6b;
+  box-shadow: 0 0 6px rgba(255, 159, 107, 0.6);
+}
+.land-dot.tier-bad {
+  background: #ff8a92;
+  box-shadow: 0 0 6px rgba(255, 138, 146, 0.6);
+}
+.land-dot.tier-none {
+  background: rgba(255, 255, 255, 0.18);
+}
 
-.duo-right { flex: 1; overflow-y: auto; min-width: 0; }
+.duo-right {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+}
 
-.duo-list { list-style: none; padding: 6px 0; }
+.duo-list {
+  list-style: none;
+  padding: 6px 0;
+}
 
 .duo-srv {
   display: flex;
@@ -192,19 +285,36 @@ async function hop(id: string) {
   gap: 12px;
   padding: 9px 16px;
   cursor: pointer;
-  transition: background 150ms ease;
+  transition:
+    background 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 320ms ease,
+    padding 260ms cubic-bezier(0.34, 1.3, 0.64, 1);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px;
 }
 
-.duo-srv:hover { background: rgba(255, 255, 255, 0.05); }
+.duo-srv:hover {
+  background: rgba(255, 255, 255, 0.05);
+  padding-left: 19px;
+}
 
 .duo-srv--selected {
   background: rgba(52, 208, 114, 0.08);
   box-shadow: inset 2px 0 0 rgba(52, 208, 114, 0.6);
 }
 
-.duo-srv--disabled { opacity: 0.55; pointer-events: none; }
+.duo-srv--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
 
-.duo-srv-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.duo-srv-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 .duo-srv--expired {
   opacity: 0.35;
   filter: grayscale(0.7);
@@ -218,13 +328,24 @@ async function hop(id: string) {
   text-overflow: ellipsis;
 }
 
-.duo-srv-meta { font-size: 10.5px; color: var(--muted-foreground); }
+.duo-srv-meta {
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+}
 
-.duo-srv-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.duo-srv-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 
-.duo-check { color: #5ee69a; }
+.duo-check {
+  color: #5ee69a;
+}
 
-.duo-hint, .duo-empty {
+.duo-hint,
+.duo-empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,15 +369,104 @@ async function hop(id: string) {
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
 }
 
-.entry-btn:hover { color: var(--foreground); background: rgba(255, 255, 255, 0.08); }
+.entry-btn:hover {
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.08);
+}
 
 .entry-btn--active {
   color: #8fb6ff;
   border-color: rgba(96, 150, 240, 0.4);
   background: rgba(70, 120, 220, 0.14);
+}
+
+.fav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease,
+    opacity 180ms ease,
+    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.duo-srv:hover .fav-btn {
+  opacity: 1;
+}
+
+.fav-btn:hover {
+  color: #ffd47a;
+  border-color: rgba(255, 212, 122, 0.4);
+  background: rgba(255, 200, 90, 0.12);
+  transform: scale(1.08);
+}
+
+.fav-btn--on {
+  opacity: 1;
+  color: #ffd47a;
+}
+
+.fav-btn--on > svg {
+  fill: currentColor;
+}
+
+.copy-ip-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease,
+    opacity 180ms ease;
+}
+
+.duo-srv:hover .copy-ip-btn {
+  opacity: 1;
+}
+
+.copy-ip-btn:hover {
+  color: #d9ccff;
+  border-color: rgba(167, 139, 250, 0.4);
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.copy-ip-btn--done {
+  opacity: 1;
+  color: #5ee69a;
+}
+
+@media (hover: none) {
+  .copy-ip-btn,
+  .fav-btn {
+    opacity: 1;
+  }
 }
 
 .ping-badge {
@@ -268,20 +478,79 @@ async function hop(id: string) {
   white-space: nowrap;
 }
 
-.ping-badge.tier-good { background: rgba(52, 208, 114, 0.14); color: #5ee69a; }
-.ping-badge.tier-ok { background: rgba(240, 200, 60, 0.14); color: #f0d36a; }
-.ping-badge.tier-slow { background: rgba(240, 130, 60, 0.16); color: #ff9f6b; }
-.ping-badge.tier-bad { background: rgba(220, 60, 70, 0.16); color: #ff8a92; }
-.ping-badge.tier-none { background: rgba(255, 255, 255, 0.06); color: var(--muted-foreground); }
+.ping-badge.tier-good {
+  background: rgba(52, 208, 114, 0.14);
+  color: #5ee69a;
+}
+.ping-badge.tier-ok {
+  background: rgba(240, 200, 60, 0.14);
+  color: #f0d36a;
+}
+.ping-badge.tier-slow {
+  background: rgba(240, 130, 60, 0.16);
+  color: #ff9f6b;
+}
+.ping-badge.tier-bad {
+  background: rgba(220, 60, 70, 0.16);
+  color: #ff8a92;
+}
+.ping-badge.tier-none {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted-foreground);
+}
 
-.swap-enter-active { transition: opacity 180ms ease, transform 180ms ease; }
-.swap-leave-active { transition: opacity 120ms ease, transform 120ms ease; }
-.swap-enter-from { opacity: 0; transform: translateX(10px); }
-.swap-leave-to { opacity: 0; transform: translateX(-6px); }
+.swap-enter-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+.swap-leave-active {
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+.swap-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+.swap-leave-to {
+  opacity: 0;
+  transform: translateX(-6px);
+}
 
-.check-pop-enter-active { transition: all 160ms cubic-bezier(0.34, 1.56, 0.64, 1); }
-.check-pop-leave-active { transition: all 100ms ease; }
-.check-pop-enter-from, .check-pop-leave-to { opacity: 0; transform: scale(0.4); }
+.check-pop-enter-active {
+  transition: all 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.check-pop-leave-active {
+  transition: all 100ms ease;
+}
+.check-pop-enter-from,
+.check-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.4);
+}
 
-.mono { font-family: var(--font-mono); }
+.mono {
+  font-family: var(--font-mono);
+}
+.duo-srv-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.srv-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srv-badge {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
 </style>

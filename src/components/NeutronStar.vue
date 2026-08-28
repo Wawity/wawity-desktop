@@ -12,6 +12,7 @@ const ready = ref(false);
 
 const RENDER_SCALE = 0.75;
 const DPR_CAP = 1.25;
+const MIN_FRAME_MS = 1000 / 61;
 
 let gl: WebGLRenderingContext | null = null;
 let sceneProg: WebGLProgram | null = null;
@@ -20,7 +21,17 @@ let film: WebGLTexture | null = null;
 let fbo: WebGLFramebuffer | null = null;
 let frame = 0;
 let born = 0;
+let lastPaint = 0;
 let dozing = false;
+type UniformSlots = {
+  sceneRes: WebGLUniformLocation | null;
+  sceneTime: WebGLUniformLocation | null;
+  sceneDrift: WebGLUniformLocation | null;
+  postTex: WebGLUniformLocation | null;
+  postRes: WebGLUniformLocation | null;
+  postTime: WebGLUniformLocation | null;
+};
+let uSlots: UniformSlots | null = null;
 let aimX = 0;
 let aimY = 0;
 let driftX = 0;
@@ -245,6 +256,7 @@ function wire(): boolean {
   if (!gl) return false;
   sceneProg = weld(sceneSrc);
   postProg = weld(postSrc);
+  uSlots = null;
   if (!sceneProg || !postProg) return false;
   const mesh = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
@@ -286,12 +298,23 @@ function paint(t: number) {
   driftX += (aimX - driftX) * 0.035;
   driftY += (aimY - driftY) * 0.035;
 
+  if (!uSlots) {
+    uSlots = {
+      sceneRes: gl.getUniformLocation(sceneProg, 'res'),
+      sceneTime: gl.getUniformLocation(sceneProg, 'time'),
+      sceneDrift: gl.getUniformLocation(sceneProg, 'drift'),
+      postTex: gl.getUniformLocation(postProg, 'tex'),
+      postRes: gl.getUniformLocation(postProg, 'res'),
+      postTime: gl.getUniformLocation(postProg, 'time'),
+    };
+  }
+
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.useProgram(sceneProg);
-  gl.uniform2f(gl.getUniformLocation(sceneProg, 'res'), canvas.width, canvas.height);
-  gl.uniform1f(gl.getUniformLocation(sceneProg, 'time'), t);
-  gl.uniform2f(gl.getUniformLocation(sceneProg, 'drift'), driftX, driftY);
+  gl.uniform2f(uSlots.sceneRes, canvas.width, canvas.height);
+  gl.uniform1f(uSlots.sceneTime, t);
+  gl.uniform2f(uSlots.sceneDrift, driftX, driftY);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -299,23 +322,26 @@ function paint(t: number) {
   gl.useProgram(postProg);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, film);
-  gl.uniform1i(gl.getUniformLocation(postProg, 'tex'), 0);
-  gl.uniform2f(gl.getUniformLocation(postProg, 'res'), canvas.width, canvas.height);
-  gl.uniform1f(gl.getUniformLocation(postProg, 'time'), t);
+  gl.uniform1i(uSlots.postTex, 0);
+  gl.uniform2f(uSlots.postRes, canvas.width, canvas.height);
+  gl.uniform1f(uSlots.postTime, t);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
 function loop(stamp: number) {
   if (dozing) return;
+  frame = requestAnimationFrame(loop);
+  if (stamp - lastPaint < MIN_FRAME_MS) return;
+  lastPaint = stamp;
   const canvas = pane.value;
   if (canvas && canvas.clientWidth > 0) {
     if (!born) born = stamp;
     paint((stamp - born) / 1000);
   }
-  frame = requestAnimationFrame(loop);
 }
 
 function chase(e: PointerEvent) {
+  if (dozing) return;
   aimX = Math.max(-1, Math.min(1, (e.clientX / window.innerWidth - 0.5) * 2));
   aimY = Math.max(-1, Math.min(1, (e.clientY / window.innerHeight - 0.5) * 2));
 }
@@ -366,7 +392,7 @@ function boot() {
   canvas.addEventListener('webglcontextlost', sink);
   canvas.addEventListener('webglcontextrestored', revive);
   document.addEventListener('visibilitychange', nap);
-  window.addEventListener('pointermove', chase);
+  window.addEventListener('pointermove', chase, { passive: true });
   frame = requestAnimationFrame(loop);
 }
 

@@ -12,12 +12,21 @@ const ready = ref(false);
 
 const RENDER_SCALE = 0.66;
 const DPR_CAP = 1.25;
+const MIN_FRAME_MS = 1000 / 61;
+const MAX_STEP_MS = 100;
 
 let gl: WebGLRenderingContext | null = null;
 let prog: WebGLProgram | null = null;
 let frame = 0;
-let born = 0;
+let last = 0;
+let clock = 0;
 let dozing = false;
+let stale = true;
+let boxW = 0;
+let boxH = 0;
+let sizer: ResizeObserver | null = null;
+let mesh: WebGLBuffer | null = null;
+const skins: WebGLTexture[] = [];
 let uRes: WebGLUniformLocation | null = null;
 let uTime: WebGLUniformLocation | null = null;
 
@@ -182,17 +191,23 @@ function wire(): boolean {
   const fs = crank(gl.FRAGMENT_SHADER, sceneSrc);
   if (!vs || !fs) return false;
   prog = gl.createProgram();
-  if (!prog) return false;
+  if (!prog) { gl.deleteShader(vs); gl.deleteShader(fs); return false; }
   gl.attachShader(prog, vs);
   gl.attachShader(prog, fs);
   gl.linkProgram(prog);
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
     console.error(gl.getProgramInfoLog(prog));
     return false;
   }
-  const mesh = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  if (!mesh) {
+    mesh = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  } else {
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
+  }
   const slot = gl.getAttribLocation(prog, 'spot');
   gl.enableVertexAttribArray(slot);
   gl.vertexAttribPointer(slot, 2, gl.FLOAT, false, 0, 0);
@@ -201,8 +216,16 @@ function wire(): boolean {
   gl.useProgram(prog);
   gl.uniform1i(gl.getUniformLocation(prog, 'dayMap'), 0);
   gl.uniform1i(gl.getUniformLocation(prog, 'nightMap'), 1);
-  skin(0, '/earth/day.jpg');
-  skin(1, '/earth/night.jpg');
+  stale = true;
+  if (skins.length === 0) {
+    skin(0, '/earth/day.jpg');
+    skin(1, '/earth/night.jpg');
+  } else {
+    for (let i = 0; i < skins.length; i++) {
+      gl.activeTexture(gl.TEXTURE0 + i);
+      gl.bindTexture(gl.TEXTURE_2D, skins[i]);
+    }
+  }
   return true;
 }
 
@@ -210,6 +233,7 @@ function skin(unit: number, url: string) {
   if (!gl) return;
   const tex = gl.createTexture();
   if (!tex) return;
+  skins[unit] = tex;
   gl.activeTexture(gl.TEXTURE0 + unit);
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([5, 12, 30]));
@@ -252,37 +276,50 @@ function skin(unit: number, url: string) {
     .catch(fallback);
 }
 
+function measure() {
+  const canvas = pane.value;
+  if (!canvas) return;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (w === boxW && h === boxH) return;
+  boxW = w;
+  boxH = h;
+  stale = true;
+}
+
 function fit() {
   const canvas = pane.value;
   if (!canvas || !gl) return;
   const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
-  const w = Math.max(1, Math.round(canvas.clientWidth * dpr * RENDER_SCALE));
-  const h = Math.max(1, Math.round(canvas.clientHeight * dpr * RENDER_SCALE));
+  const w = Math.max(1, Math.round(boxW * dpr * RENDER_SCALE));
+  const h = Math.max(1, Math.round(boxH * dpr * RENDER_SCALE));
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w;
     canvas.height = h;
   }
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(uRes, canvas.width, canvas.height);
+  stale = false;
 }
 
 function paint(t: number) {
   const canvas = pane.value;
   if (!canvas || !gl || !prog) return;
-  fit();
-  gl.viewport(0, 0, canvas.width, canvas.height);
   gl.useProgram(prog);
-  gl.uniform2f(uRes, canvas.width, canvas.height);
+  if (stale) fit();
   gl.uniform1f(uTime, t);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
 function loop(stamp: number) {
   if (dozing) return;
-  const canvas = pane.value;
-  if (canvas && canvas.clientWidth > 0) {
-    if (!born) born = stamp;
-    paint((stamp - born) / 1000);
-  }
   frame = requestAnimationFrame(loop);
+  if (!last) last = stamp;
+  const step = stamp - last;
+  if (step < MIN_FRAME_MS) return;
+  last = stamp;
+  clock += Math.min(step, MAX_STEP_MS) / 1000;
+  if (boxW > 0 && boxH > 0) paint(clock);
 }
 
 function nap() {
@@ -291,7 +328,7 @@ function nap() {
     cancelAnimationFrame(frame);
   } else if (dozing) {
     dozing = false;
-    born = 0;
+    last = 0;
     frame = requestAnimationFrame(loop);
   }
 }
@@ -305,13 +342,9 @@ function sink(e: Event) {
 
 function revive() {
   if (wire()) {
-    born = 0;
+    last = 0;
     frame = requestAnimationFrame(loop);
   }
-}
-
-function refit() {
-  fit();
 }
 
 function boot() {
@@ -323,8 +356,10 @@ function boot() {
     antialias: false,
     depth: false,
     stencil: false,
+    powerPreference: 'low-power',
   });
   if (!gl || !wire()) return;
+  measure();
   paint(0);
   ready.value = true;
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -335,25 +370,41 @@ function boot() {
   canvas.addEventListener('webglcontextlost', sink);
   canvas.addEventListener('webglcontextrestored', revive);
   document.addEventListener('visibilitychange', nap);
-  window.addEventListener('resize', refit);
-  frame = requestAnimationFrame(loop);
+  sizer = new ResizeObserver(measure);
+  sizer.observe(canvas);
+  if (props.active && !document.hidden) {
+    frame = requestAnimationFrame(loop);
+  } else {
+    dozing = true;
+  }
 }
 
 onMounted(boot);
 
 onUnmounted(() => {
+  dozing = true;
   cancelAnimationFrame(frame);
   document.removeEventListener('visibilitychange', nap);
-  window.removeEventListener('resize', refit);
+  if (sizer) {
+    sizer.disconnect();
+    sizer = null;
+  }
   const canvas = pane.value;
   if (canvas) {
     canvas.removeEventListener('webglcontextlost', sink);
     canvas.removeEventListener('webglcontextrestored', revive);
   }
   if (gl) {
+    for (const tex of skins) if (tex) gl.deleteTexture(tex);
+    if (mesh) gl.deleteBuffer(mesh);
+    if (prog) gl.deleteProgram(prog);
     const plug = gl.getExtension('WEBGL_lose_context');
     if (plug) plug.loseContext();
   }
+  skins.length = 0;
+  mesh = null;
+  prog = null;
+  gl = null;
 });
 </script>
 

@@ -53,7 +53,7 @@ function loadPersistedLanguage(): void {
       state.lang = parsed.language;
     }
   } catch {
-    /* ignore corrupted settings blob */
+    
   }
 }
 

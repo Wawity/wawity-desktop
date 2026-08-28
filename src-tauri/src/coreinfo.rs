@@ -41,7 +41,6 @@ fn file_sha256(path: &std::path::Path) -> Option<String> {
     Some(format!("{:x}", hasher.finalize()))
 }
 
-
 fn detect_version(path: &std::path::Path) -> Option<String> {
     let mut command = std::process::Command::new(path);
     command.arg("version");

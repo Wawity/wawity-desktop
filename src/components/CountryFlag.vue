@@ -7,6 +7,8 @@
       :height="height"
       class="flag-img"
       :alt="code"
+      loading="lazy"
+      decoding="async"
       @error="broken = true"
     />
     <div v-else class="flag-fallback" :style="boxStyle">
@@ -28,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 const props = withDefaults(defineProps<{
   code: string;
@@ -45,6 +47,8 @@ const resolvedSrc = computed(() => {
   if (!props.code || props.code === 'UN') return null;
   return `/flags/${props.code.toLowerCase()}.svg`;
 });
+
+watch(() => props.code, () => { broken.value = false; });
 
 const boxStyle = computed(() => ({
   width: props.width + 'px',

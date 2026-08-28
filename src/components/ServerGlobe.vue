@@ -87,7 +87,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue';
-import { Shuffle, Check, Plus, Minus } from 'lucide-vue-next';
+import { Shuffle, Check, Plus, Minus } from '../lib/appIcons';
 import { useVpnStore } from '../stores/vpn';
 import { t } from '../i18n';
 import { groupServers, pingTier, worldMarkers } from '../lib/geo';
@@ -104,10 +104,16 @@ const buckets = computed(() =>
 
 const picked = ref('');
 
+let ownedCodes = new Set<string>();
+
 watchEffect(() => {
   if (!buckets.value.length) { picked.value = ''; return; }
   if (!buckets.value.some(b => b.code === picked.value))
     picked.value = buckets.value[0].code;
+});
+
+watchEffect(() => {
+  ownedCodes = new Set(buckets.value.map(b => b.code));
 });
 
 const current = computed(() => buckets.value.find(b => b.code === picked.value) ?? null);
@@ -142,6 +148,7 @@ const atlas = worldMarkers();
 
 const RENDER_SCALE = 0.7;
 const DPR_CAP      = 1.25;
+const MIN_FRAME_MS = 1000 / 61;
 const BODY_FRAC    = 0.44;
 const ZOOM_MIN     = 1.1;
 const ZOOM_MAX     = 8.0;
@@ -374,19 +381,28 @@ function wire(): boolean {
   return true;
 }
 
+let stageW = 0;
+let stageH = 0;
+
+function measure() {
+  if (!wrap.value) return;
+  stageW = wrap.value.clientWidth;
+  stageH = wrap.value.clientHeight;
+}
+
 function fit() {
-  if (!pane.value || !wrap.value || !gl) return;
+  if (!pane.value || !gl || stageW === 0 || stageH === 0) return;
   const dpr = Math.min(devicePixelRatio||1, DPR_CAP) * RENDER_SCALE;
-  const w = Math.max(1, Math.round(wrap.value.clientWidth  * dpr));
-  const h = Math.max(1, Math.round(wrap.value.clientHeight * dpr));
+  const w = Math.max(1, Math.round(stageW * dpr));
+  const h = Math.max(1, Math.round(stageH * dpr));
   if (pane.value.width!==w || pane.value.height!==h) {
     pane.value.width=w; pane.value.height=h;
     gl.viewport(0,0,w,h);
   }
   if (spray.value) {
     const sd = Math.min(devicePixelRatio||1, 1.5);
-    const sw = Math.round(wrap.value.clientWidth  * sd);
-    const sh = Math.round(wrap.value.clientHeight * sd);
+    const sw = Math.round(stageW * sd);
+    const sh = Math.round(stageH * sd);
     if (spray.value.width!==sw || spray.value.height!==sh) {
       spray.value.width=sw; spray.value.height=sh;
       ink = spray.value.getContext('2d');
@@ -455,16 +471,36 @@ function untangle(pins: Array<{ code: string; x: number; y: number; size: number
     if (!touched) break;
   }
 }
+type Pin = {
+  code: string; el: HTMLElement;
+  ax: number; ay: number;
+  x: number; y: number;
+  depth: number; size: number;
+};
+
+const shownPins: Pin[] = [];
+const pinPaint = new Map<string, { transform: string; opacity: string; z: string }>();
+
+function applyPinStyle(code: string, el: HTMLElement, transform: string, opacity: string, z: string, hit: string) {
+  let prev = pinPaint.get(code);
+  if (!prev) {
+    prev = { transform: '', opacity: '', z: '' };
+    pinPaint.set(code, prev);
+  }
+  if (prev.transform !== transform) { el.style.transform = transform; prev.transform = transform; }
+  if (prev.opacity !== opacity) {
+    el.style.opacity = opacity;
+    el.style.pointerEvents = hit;
+    prev.opacity = opacity;
+  }
+  if (prev.z !== z) { el.style.zIndex = z; prev.z = z; }
+}
+
 function place() {
-  if (!wrap.value) return;
-  const w = wrap.value.clientWidth;
-  const h = wrap.value.clientHeight;
-  const shown: Array<{
-    code: string; el: HTMLElement;
-    ax: number; ay: number;
-    x: number; y: number;
-    depth: number; size: number;
-  }> = [];
+  const w = stageW;
+  const h = stageH;
+  if (w === 0 || h === 0) return;
+  shownPins.length = 0;
 
   for (const b of buckets.value) {
     const el = pinEls.get(b.code);
@@ -472,18 +508,20 @@ function place() {
     const sp = project(b.lat, b.lon, w, h);
     if (sp.depth <= 0.10) {
       spread.delete(b.code);
-      el.style.opacity = '0';
-      el.style.pointerEvents = 'none';
-      el.style.transform = `translate(${sp.x}px,${sp.y}px) translate(-50%,-100%) scale(0)`;
+      applyPinStyle(
+        b.code, el,
+        `translate(${sp.x.toFixed(1)}px,${sp.y.toFixed(1)}px) translate(-50%,-100%) scale(0)`,
+        '0', '0', 'none',
+      );
       continue;
     }
     const size = 0.72 + sp.depth * 0.28;
-    shown.push({ code: b.code, el, ax: sp.x, ay: sp.y, x: sp.x, y: sp.y, depth: sp.depth, size });
+    shownPins.push({ code: b.code, el, ax: sp.x, ay: sp.y, x: sp.x, y: sp.y, depth: sp.depth, size });
   }
 
-  untangle(shown);
+  untangle(shownPins);
 
-  for (const s of shown) {
+  for (const s of shownPins) {
     let ox = s.x - s.ax;
     let oy = s.y - s.ay;
     const len = Math.hypot(ox, oy);
@@ -491,40 +529,72 @@ function place() {
       ox *= SPREAD_CAP / len;
       oy *= SPREAD_CAP / len;
     }
-    const cur = spread.get(s.code) ?? { x: 0, y: 0 };
+    let cur = spread.get(s.code);
+    if (!cur) { cur = { x: 0, y: 0 }; spread.set(s.code, cur); }
     cur.x += (ox - cur.x) * 0.22;
     cur.y += (oy - cur.y) * 0.22;
-    spread.set(s.code, cur);
-    s.el.style.opacity = String(0.4 + s.depth * 0.6);
-    s.el.style.pointerEvents = 'auto';
-    s.el.style.zIndex = String(10 + Math.round(s.depth * 40));
-    s.el.style.transform =
-      `translate(${s.ax + cur.x}px,${s.ay + cur.y}px) translate(-50%,-100%) scale(${s.size})`;
+    applyPinStyle(
+      s.code, s.el,
+      `translate(${(s.ax + cur.x).toFixed(1)}px,${(s.ay + cur.y).toFixed(1)}px) translate(-50%,-100%) scale(${s.size.toFixed(3)})`,
+      (0.4 + s.depth * 0.6).toFixed(2),
+      String(10 + Math.round(s.depth * 40)),
+      'auto',
+    );
   }
 }
 
+const ALPHA_BANDS = 6;
+const ALPHA_FILLS: string[] = Array.from({ length: ALPHA_BANDS }, (_, band) => {
+  const a = 0.12 + ((band + 0.5) / ALPHA_BANDS) * 0.28;
+  return `rgba(160,190,255,${a.toFixed(3)})`;
+});
+const bandXYR: Float32Array[] = Array.from({ length: ALPHA_BANDS }, () => new Float32Array(768));
+const bandCount = new Int32Array(ALPHA_BANDS);
+
 function sprinkle() {
-  if (!ink||!wrap.value) return;
-  const w = wrap.value.clientWidth;
-  const h = wrap.value.clientHeight;
-  ink.clearRect(0,0,w,h);
-  const owned = new Set(buckets.value.map(b=>b.code));
+  const w = stageW;
+  const h = stageH;
+  if (!ink || w === 0 || h === 0) return;
+  ink.clearRect(0, 0, w, h);
+  bandCount.fill(0);
+  const zoomScale = Math.min(zoomNow, 1.5);
+
   for (const m of atlas) {
-    if (owned.has(m.code)) continue;
+    if (ownedCodes.has(m.code)) continue;
     const sp = project(m.lat, m.lon, w, h);
-    if (sp.depth<=0.05) continue;
-    const a = 0.12 + sp.depth*0.28;
-    const r = (0.85 + sp.depth*0.75) * Math.min(zoomNow,1.5);
+    if (sp.depth <= 0.05) continue;
+    let band = (sp.depth * ALPHA_BANDS) | 0;
+    if (band >= ALPHA_BANDS) band = ALPHA_BANDS - 1;
+    const buf = bandXYR[band];
+    const n = bandCount[band];
+    if (n * 3 + 2 >= buf.length) continue;
+    buf[n * 3] = sp.x;
+    buf[n * 3 + 1] = sp.y;
+    buf[n * 3 + 2] = (0.85 + sp.depth * 0.75) * zoomScale;
+    bandCount[band] = n + 1;
+  }
+
+  for (let band = 0; band < ALPHA_BANDS; band++) {
+    const n = bandCount[band];
+    if (n === 0) continue;
+    const buf = bandXYR[band];
     ink.beginPath();
-    ink.arc(sp.x, sp.y, r, 0, Math.PI*2);
-    ink.fillStyle=`rgba(160,190,255,${a.toFixed(3)})`;
+    for (let i = 0; i < n; i++) {
+      const x = buf[i * 3];
+      const y = buf[i * 3 + 1];
+      const r = buf[i * 3 + 2];
+      ink.moveTo(x + r, y);
+      ink.arc(x, y, r, 0, Math.PI * 2);
+    }
+    ink.fillStyle = ALPHA_FILLS[band];
     ink.fill();
   }
 }
 
 function loop(now: number) {
   raf = requestAnimationFrame(loop);
-  const dt = Math.min((now-last)/1000, 0.05);
+  if (now - last < MIN_FRAME_MS) return;
+  const dt = Math.min((now-last)/1000, 0.1);
   last = now;
   if (!held.value) {
     turn  += glide;
@@ -536,6 +606,18 @@ function loop(now: number) {
   paint(now);
   place();
   sprinkle();
+}
+
+function nap() {
+  if (document.hidden) {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    return;
+  }
+  if (!raf) {
+    last = performance.now();
+    idleAt = last;
+    raf = requestAnimationFrame(loop);
+  }
 }
 
 function grab(e: PointerEvent) {
@@ -576,21 +658,32 @@ onMounted(() => {
   born  = performance.now();
   last  = born;
   idleAt = born;
-  watcher = new ResizeObserver(()=>{ fit(); paint(performance.now()); place(); sprinkle(); });
+  measure();
+  watcher = new ResizeObserver(()=>{ measure(); fit(); paint(performance.now()); place(); sprinkle(); });
   if (wrap.value) watcher.observe(wrap.value);
-  window.addEventListener('pointermove', drag);
-  window.addEventListener('pointerup', release);
+  window.addEventListener('pointermove', drag, { passive: true });
+  window.addEventListener('pointerup', release, { passive: true });
   wrap.value?.addEventListener('wheel', roll, { passive:false });
+  document.addEventListener('visibilitychange', nap);
   raf = requestAnimationFrame(loop);
 });
 
 onUnmounted(() => {
-  cancelAnimationFrame(raf);
+  if (raf) cancelAnimationFrame(raf);
+  raf = 0;
   window.removeEventListener('pointermove', drag);
   window.removeEventListener('pointerup', release);
   wrap.value?.removeEventListener('wheel', roll);
+  document.removeEventListener('visibilitychange', nap);
   watcher?.disconnect();
+  watcher = null;
+  pinEls.clear();
+  pinPaint.clear();
+  spread.clear();
   if (gl) { gl.getExtension('WEBGL_lose_context')?.loseContext(); }
+  gl = null;
+  prog = null;
+  ink = null;
 });
 </script>
 
@@ -644,7 +737,7 @@ onUnmounted(() => {
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.18);
   background: rgba(10,12,22,0.58);
-  backdrop-filter: blur(8px) saturate(140%);
+  backdrop-filter: blur(8px);
   color: rgba(235,238,250,0.9);
   font-size: 9px;
   font-weight: 700;
@@ -732,7 +825,7 @@ onUnmounted(() => {
   border-radius: 9px;
   border: 1px solid rgba(255,255,255,0.14);
   background: rgba(10,12,22,0.55);
-  backdrop-filter: blur(10px) saturate(150%);
+  backdrop-filter: blur(10px);
   color: rgba(235,238,250,0.7);
   cursor: pointer;
   transition: background 150ms, color 150ms, transform 150ms;
@@ -747,7 +840,7 @@ onUnmounted(() => {
   flex-direction: column;
   border-left: 1px solid rgba(255,255,255,0.08);
   background: rgba(10,12,20,0.5);
-  backdrop-filter: blur(22px) saturate(155%);
+  backdrop-filter: blur(12px);
   z-index: 70;
 }
 
@@ -780,6 +873,8 @@ onUnmounted(() => {
   border-radius: 11px;
   cursor: pointer;
   transition: background 140ms;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 42px;
 }
 .orb-srv:hover { background:rgba(255,255,255,0.06); }
 .orb-srv--selected { background:rgba(167,139,250,0.13); }

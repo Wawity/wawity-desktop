@@ -1,7 +1,25 @@
 import { defineStore } from 'pinia';
+import { badgeForIndex } from '../lib/subicons';
+import type { AutoOffPlan, DeepSample, ServerStat } from '../types/vpn';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
-import type { VpnStatus, AppSettings, SubscriptionGroup, ServerEntry, SessionRecord, BlockReport } from '../types/vpn.d';
+import type {
+  VpnStatus,
+  AppSettings,
+  SubscriptionGroup,
+  ServerEntry,
+  SessionRecord,
+  BlockReport,
+  Role,
+  RoleOverrides,
+  RoutingRule,
+  RuleProvider,
+  RuleAction,
+  RuleMatchType,
+  ProviderKind,
+  RouteRuleSpec,
+  ServerGroup,
+} from '../types/vpn.d';
 import { useNotifications } from '../composables/useNotifications';
 import { setLanguage, t } from '../i18n';
 
@@ -9,23 +27,182 @@ let activeHotkeyKey = '';
 let hotkeyTogglePending = false;
 
 import { setTelemetryAllowed, track } from '../lib/telemetry';
+import { setMotionLevel } from '../lib/motion';
+import {
+  accumulate as accumulateTraffic,
+  loadHistory as loadTrafficHistory,
+  saveHistory as saveTrafficHistory,
+  sumDays,
+  type SubTrafficHistory,
+} from '../lib/trafficHistory';
+
+const STREAMING_DOMAINS = [
+  'netflix.com',
+  'nflxvideo.net',
+  'nflximg.net',
+  'youtube.com',
+  'googlevideo.com',
+  'ytimg.com',
+  'youtu.be',
+  'twitch.tv',
+  'ttvnw.net',
+  'jtvnw.net',
+  'disneyplus.com',
+  'disney-plus.net',
+  'dssott.com',
+  'primevideo.com',
+  'aiv-cdn.net',
+  'media-amazon.com',
+  'spotify.com',
+  'scdn.co',
+  'spotifycdn.com',
+  'hbomax.com',
+  'max.com',
+];
+
+const TRACKER_DOMAINS = [
+  'doubleclick.net',
+  'google-analytics.com',
+  'googletagmanager.com',
+  'googlesyndication.com',
+  'adservice.google.com',
+  'scorecardresearch.com',
+  'app-measurement.com',
+  'crashlytics.com',
+  'branch.io',
+  'appsflyer.com',
+  'adjust.com',
+  'amplitude.com',
+  'mixpanel.com',
+  'analytics.tiktok.com',
+  'ads.yahoo.com',
+];
+
+function normalizeCidr(raw: string): string {
+  const value = raw.trim();
+  if (!value) return value;
+  if (value.includes('/')) return value;
+  if (value.includes(':')) return `${value}/128`;
+  return `${value}/32`;
+}
+
+function presetRule(
+  type: RuleMatchType,
+  value: string,
+  action: RuleAction,
+  tag: string,
+): RoutingRule {
+  return { id: `preset-${tag}`, type, value, action };
+}
+
+const ROLE_PRESETS: Record<string, RoutingRule[]> = {
+  streaming: STREAMING_DOMAINS.map((d, i) => presetRule('domainSuffix', d, 'proxy', `stream-${i}`)),
+  privacy: TRACKER_DOMAINS.map((d, i) => presetRule('domainSuffix', d, 'block', `priv-${i}`)),
+};
+
+function builtinRoles(): Role[] {
+  return [
+    {
+      id: 'standard',
+      name: '',
+      icon: 'Shield',
+      color: '#5ee69a',
+      builtin: true,
+      rules: [],
+      providers: [],
+      overrides: {
+        dpi_profile: null,
+        bootstrap_dns: null,
+        tunnel_own_traffic: null,
+        route_all: true,
+      },
+    },
+    {
+      id: 'work',
+      name: '',
+      icon: 'Anchor',
+      color: '#8fb6ff',
+      builtin: true,
+      rules: [],
+      providers: [],
+      overrides: {
+        dpi_profile: 'medium',
+        bootstrap_dns: 'quad9',
+        tunnel_own_traffic: null,
+        route_all: true,
+      },
+    },
+    {
+      id: 'gaming',
+      name: '',
+      icon: 'Zap',
+      color: '#f0d36a',
+      builtin: true,
+      rules: [],
+      providers: [],
+      overrides: {
+        dpi_profile: 'off',
+        bootstrap_dns: null,
+        tunnel_own_traffic: true,
+        route_all: true,
+      },
+    },
+    {
+      id: 'streaming',
+      name: '',
+      icon: 'Signal',
+      color: '#ff9f6b',
+      builtin: true,
+      rules: [],
+      providers: [],
+      overrides: {
+        dpi_profile: 'soft',
+        bootstrap_dns: null,
+        tunnel_own_traffic: null,
+        route_all: true,
+      },
+    },
+    {
+      id: 'privacy',
+      name: '',
+      icon: 'ShieldCheck',
+      color: '#a78bfa',
+      builtin: true,
+      rules: [],
+      providers: [],
+      overrides: {
+        dpi_profile: 'hard',
+        bootstrap_dns: 'quad9',
+        tunnel_own_traffic: true,
+        route_all: true,
+      },
+    },
+  ];
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   kill_switch: true,
   always_on: false,
   auto_connect: false,
   start_on_boot: false,
-  telemetry: true,
+  telemetry: false,
   lan_access: false,
   block_trackers: true,
   notifications: false,
   multihop_enabled: false,
   quantum_resistant: true,
-  black_hole_bg: true,
+  ui_style: 'wawity',
+      black_hole_bg: true,
   black_hole_detail: 'simple',
   liquid_glass: false,
+  motion_level: 'fancy',
   server_view: 'list',
   protocol: 'auto',
+  dns_remote: 'cloudflare' as const,
+  dns_custom_doh: '',
+  dns_block_ads: true,
+  dns_block_trackers: true,
+  auto_failover: false,
   bypass_apps: [],
   split_mode: 'exclude',
   split_domains: [],
@@ -46,6 +223,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   dns_leak_guard: true,
   bootstrap_dns: 'cloudflare',
   online_geolocation: false,
+  dpi_profile: 'off',
+  smart_connect: true,
+  failover_enabled: false,
+  failover_chain: [],
+  failover_retries: 2,
+  auto_off_default_minutes: 30,
+  hwid_enabled: true,
 };
 
 const DEFAULT_STATUS: VpnStatus = {
@@ -66,90 +250,356 @@ const DEFAULT_STATUS: VpnStatus = {
 
 const STORAGE_KEY_SELECTED_SERVER = 'wawity_selected_server';
 
+const STORAGE_KEY_STATS = 'wawity_server_stats';
+const STORAGE_KEY_AUTO_OFF = 'wawity_auto_off';
+const EWMA_ALPHA = 0.3;
+
+const LIVE_POLL_MS = 2000;
+const HIDDEN_POLL_MS = 10000;
+
 const KEYWORD_MAP: Record<string, string> = {
-  'россия': 'ru', 'российская': 'ru', 'москва': 'ru', 'russia': 'ru', 'russian': 'ru', 'moscow': 'ru', 'moskva': 'ru',
-  'германия': 'de', 'germany': 'de', 'german': 'de', 'frankfurt': 'de', 'berlin': 'de', 'nuremberg': 'de',
-  'нидерланды': 'nl', 'netherlands': 'nl', 'amsterdam': 'nl', 'holland': 'nl',
-  'сша': 'us', 'соединенные штаты': 'us', 'united states': 'us', 'usa': 'us',
-  'new york': 'us', 'los angeles': 'us', 'chicago': 'us', 'seattle': 'us', 'dallas': 'us', 'miami': 'us', 'ashburn': 'us',
-  'великобритания': 'gb', 'британия': 'gb', 'united kingdom': 'gb', 'london': 'gb', 'england': 'gb', 'britain': 'gb',
-  'франция': 'fr', 'france': 'fr', 'paris': 'fr',
-  'япония': 'jp', 'japan': 'jp', 'tokyo': 'jp', 'osaka': 'jp',
-  'сингапур': 'sg', 'singapore': 'sg',
-  'канада': 'ca', 'canada': 'ca', 'toronto': 'ca', 'montreal': 'ca', 'vancouver': 'ca',
-  'австралия': 'au', 'australia': 'au', 'sydney': 'au', 'melbourne': 'au',
-  'швеция': 'se', 'sweden': 'se', 'stockholm': 'se',
-  'финляндия': 'fi', 'finland': 'fi', 'helsinki': 'fi',
-  'норвегия': 'no', 'norway': 'no', 'oslo': 'no',
-  'швейцария': 'ch', 'switzerland': 'ch', 'zurich': 'ch', 'geneva': 'ch',
-  'польша': 'pl', 'poland': 'pl', 'warsaw': 'pl',
-  'украина': 'ua', 'ukraine': 'ua', 'kyiv': 'ua', 'kiev': 'ua',
-  'турция': 'tr', 'turkey': 'tr', 'istanbul': 'tr', 'ankara': 'tr',
-  'бразилия': 'br', 'brazil': 'br', 'sao paulo': 'br',
-  'индия': 'in', 'india': 'in', 'mumbai': 'in', 'delhi': 'in',
-  'китай': 'cn', 'china': 'cn', 'beijing': 'cn', 'shanghai': 'cn',
-  'южная корея': 'kr', 'south korea': 'kr', 'korea': 'kr', 'seoul': 'kr',
-  'гонконг': 'hk', 'hong kong': 'hk',
-  'тайвань': 'tw', 'taiwan': 'tw', 'taipei': 'tw',
-  'испания': 'es', 'spain': 'es', 'madrid': 'es', 'barcelona': 'es',
-  'италия': 'it', 'italy': 'it', 'rome': 'it', 'milan': 'it',
-  'австрия': 'at', 'austria': 'at', 'vienna': 'at',
-  'чехия': 'cz', 'czech': 'cz', 'prague': 'cz',
-  'румыния': 'ro', 'romania': 'ro', 'bucharest': 'ro',
-  'венгрия': 'hu', 'hungary': 'hu', 'budapest': 'hu',
-  'португалия': 'pt', 'portugal': 'pt', 'lisbon': 'pt',
-  'аргентина': 'ar', 'argentina': 'ar', 'buenos aires': 'ar',
-  'мексика': 'mx', 'mexico': 'mx',
-  'израиль': 'il', 'israel': 'il', 'tel aviv': 'il',
-  'оаэ': 'ae', 'uae': 'ae', 'dubai': 'ae',
-  'саудовская аравия': 'sa', 'saudi': 'sa', 'riyadh': 'sa',
-  'южная африка': 'za', 'south africa': 'za', 'johannesburg': 'za',
-  'латвия': 'lv', 'latvia': 'lv', 'riga': 'lv',
-  'литва': 'lt', 'lithuania': 'lt', 'vilnius': 'lt',
-  'эстония': 'ee', 'estonia': 'ee', 'tallinn': 'ee',
-  'молдова': 'md', 'moldova': 'md',
-  'беларусь': 'by', 'belarus': 'by', 'minsk': 'by',
-  'казахстан': 'kz', 'kazakhstan': 'kz', 'almaty': 'kz',
-  'грузия': 'ge', 'georgia': 'ge', 'tbilisi': 'ge',
-  'армения': 'am', 'armenia': 'am', 'yerevan': 'am',
-  'азербайджан': 'az', 'azerbaijan': 'az', 'baku': 'az',
-  'индонезия': 'id', 'indonesia': 'id', 'jakarta': 'id',
-  'малайзия': 'my', 'malaysia': 'my', 'kuala lumpur': 'my',
-  'таиланд': 'th', 'thailand': 'th', 'bangkok': 'th',
-  'вьетнам': 'vn', 'vietnam': 'vn', 'hanoi': 'vn',
-  'филиппины': 'ph', 'philippines': 'ph', 'manila': 'ph',
-  'пакистан': 'pk', 'pakistan': 'pk', 'karachi': 'pk',
-  'египет': 'eg', 'egypt': 'eg', 'cairo': 'eg',
-  'дания': 'dk', 'denmark': 'dk', 'copenhagen': 'dk',
-  'бельгия': 'be', 'belgium': 'be', 'brussels': 'be',
-  'словакия': 'sk', 'slovakia': 'sk', 'bratislava': 'sk',
-  'болгария': 'bg', 'bulgaria': 'bg', 'sofia': 'bg',
-  'сербия': 'rs', 'serbia': 'rs', 'belgrade': 'rs',
-  'хорватия': 'hr', 'croatia': 'hr', 'zagreb': 'hr',
-  'греция': 'gr', 'greece': 'gr', 'athens': 'gr',
-  'ирландия': 'ie', 'ireland': 'ie', 'dublin': 'ie',
-  'люксембург': 'lu', 'luxembourg': 'lu',
-  'исландия': 'is', 'iceland': 'is', 'reykjavik': 'is',
-  'новая зеландия': 'nz', 'new zealand': 'nz', 'auckland': 'nz',
-  'чили': 'cl', 'chile': 'cl', 'santiago': 'cl',
-  'колумбия': 'co', 'colombia': 'co', 'bogota': 'co',
-  'перу': 'pe', 'peru': 'pe', 'lima': 'pe',
+  россия: 'ru',
+  российская: 'ru',
+  москва: 'ru',
+  russia: 'ru',
+  russian: 'ru',
+  moscow: 'ru',
+  moskva: 'ru',
+  германия: 'de',
+  germany: 'de',
+  german: 'de',
+  frankfurt: 'de',
+  berlin: 'de',
+  nuremberg: 'de',
+  нидерланды: 'nl',
+  netherlands: 'nl',
+  amsterdam: 'nl',
+  holland: 'nl',
+  сша: 'us',
+  'соединенные штаты': 'us',
+  'united states': 'us',
+  usa: 'us',
+  'new york': 'us',
+  'los angeles': 'us',
+  chicago: 'us',
+  seattle: 'us',
+  dallas: 'us',
+  miami: 'us',
+  ashburn: 'us',
+  великобритания: 'gb',
+  британия: 'gb',
+  'united kingdom': 'gb',
+  london: 'gb',
+  england: 'gb',
+  britain: 'gb',
+  франция: 'fr',
+  france: 'fr',
+  paris: 'fr',
+  япония: 'jp',
+  japan: 'jp',
+  tokyo: 'jp',
+  osaka: 'jp',
+  сингапур: 'sg',
+  singapore: 'sg',
+  канада: 'ca',
+  canada: 'ca',
+  toronto: 'ca',
+  montreal: 'ca',
+  vancouver: 'ca',
+  австралия: 'au',
+  australia: 'au',
+  sydney: 'au',
+  melbourne: 'au',
+  швеция: 'se',
+  sweden: 'se',
+  stockholm: 'se',
+  финляндия: 'fi',
+  finland: 'fi',
+  helsinki: 'fi',
+  норвегия: 'no',
+  norway: 'no',
+  oslo: 'no',
+  швейцария: 'ch',
+  switzerland: 'ch',
+  zurich: 'ch',
+  geneva: 'ch',
+  польша: 'pl',
+  poland: 'pl',
+  warsaw: 'pl',
+  украина: 'ua',
+  ukraine: 'ua',
+  kyiv: 'ua',
+  kiev: 'ua',
+  турция: 'tr',
+  turkey: 'tr',
+  istanbul: 'tr',
+  ankara: 'tr',
+  бразилия: 'br',
+  brazil: 'br',
+  'sao paulo': 'br',
+  индия: 'in',
+  india: 'in',
+  mumbai: 'in',
+  delhi: 'in',
+  китай: 'cn',
+  china: 'cn',
+  beijing: 'cn',
+  shanghai: 'cn',
+  'южная корея': 'kr',
+  'south korea': 'kr',
+  korea: 'kr',
+  seoul: 'kr',
+  гонконг: 'hk',
+  'hong kong': 'hk',
+  тайвань: 'tw',
+  taiwan: 'tw',
+  taipei: 'tw',
+  испания: 'es',
+  spain: 'es',
+  madrid: 'es',
+  barcelona: 'es',
+  италия: 'it',
+  italy: 'it',
+  rome: 'it',
+  milan: 'it',
+  австрия: 'at',
+  austria: 'at',
+  vienna: 'at',
+  чехия: 'cz',
+  czech: 'cz',
+  prague: 'cz',
+  румыния: 'ro',
+  romania: 'ro',
+  bucharest: 'ro',
+  венгрия: 'hu',
+  hungary: 'hu',
+  budapest: 'hu',
+  португалия: 'pt',
+  portugal: 'pt',
+  lisbon: 'pt',
+  аргентина: 'ar',
+  argentina: 'ar',
+  'buenos aires': 'ar',
+  мексика: 'mx',
+  mexico: 'mx',
+  израиль: 'il',
+  israel: 'il',
+  'tel aviv': 'il',
+  оаэ: 'ae',
+  uae: 'ae',
+  dubai: 'ae',
+  'саудовская аравия': 'sa',
+  saudi: 'sa',
+  riyadh: 'sa',
+  'южная африка': 'za',
+  'south africa': 'za',
+  johannesburg: 'za',
+  латвия: 'lv',
+  latvia: 'lv',
+  riga: 'lv',
+  литва: 'lt',
+  lithuania: 'lt',
+  vilnius: 'lt',
+  эстония: 'ee',
+  estonia: 'ee',
+  tallinn: 'ee',
+  молдова: 'md',
+  moldova: 'md',
+  беларусь: 'by',
+  belarus: 'by',
+  minsk: 'by',
+  казахстан: 'kz',
+  kazakhstan: 'kz',
+  almaty: 'kz',
+  грузия: 'ge',
+  georgia: 'ge',
+  tbilisi: 'ge',
+  армения: 'am',
+  armenia: 'am',
+  yerevan: 'am',
+  азербайджан: 'az',
+  azerbaijan: 'az',
+  baku: 'az',
+  индонезия: 'id',
+  indonesia: 'id',
+  jakarta: 'id',
+  малайзия: 'my',
+  malaysia: 'my',
+  'kuala lumpur': 'my',
+  таиланд: 'th',
+  thailand: 'th',
+  bangkok: 'th',
+  вьетнам: 'vn',
+  vietnam: 'vn',
+  hanoi: 'vn',
+  филиппины: 'ph',
+  philippines: 'ph',
+  manila: 'ph',
+  пакистан: 'pk',
+  pakistan: 'pk',
+  karachi: 'pk',
+  египет: 'eg',
+  egypt: 'eg',
+  cairo: 'eg',
+  дания: 'dk',
+  denmark: 'dk',
+  copenhagen: 'dk',
+  бельгия: 'be',
+  belgium: 'be',
+  brussels: 'be',
+  словакия: 'sk',
+  slovakia: 'sk',
+  bratislava: 'sk',
+  болгария: 'bg',
+  bulgaria: 'bg',
+  sofia: 'bg',
+  сербия: 'rs',
+  serbia: 'rs',
+  belgrade: 'rs',
+  хорватия: 'hr',
+  croatia: 'hr',
+  zagreb: 'hr',
+  греция: 'gr',
+  greece: 'gr',
+  athens: 'gr',
+  ирландия: 'ie',
+  ireland: 'ie',
+  dublin: 'ie',
+  люксембург: 'lu',
+  luxembourg: 'lu',
+  исландия: 'is',
+  iceland: 'is',
+  reykjavik: 'is',
+  'новая зеландия': 'nz',
+  'new zealand': 'nz',
+  auckland: 'nz',
+  чили: 'cl',
+  chile: 'cl',
+  santiago: 'cl',
+  колумбия: 'co',
+  colombia: 'co',
+  bogota: 'co',
+  перу: 'pe',
+  peru: 'pe',
+  lima: 'pe',
 };
 
 const ISO2_SET = new Set([
-  'ru','de','nl','us','gb','fr','jp','sg','ca','au','se','fi','no','ch','pl',
-  'ua','tr','br','in','cn','kr','hk','tw','es','it','at','cz','ro','hu','pt',
-  'ar','mx','il','ae','sa','za','lv','lt','ee','md','by','kz','ge','am','az',
-  'id','my','th','vn','ph','pk','eg','ng','dk','be','sk','bg','rs','hr','gr',
-  'ie','lu','is','nz','cl','co','pe','uk',
+  'ru',
+  'de',
+  'nl',
+  'us',
+  'gb',
+  'fr',
+  'jp',
+  'sg',
+  'ca',
+  'au',
+  'se',
+  'fi',
+  'no',
+  'ch',
+  'pl',
+  'ua',
+  'tr',
+  'br',
+  'in',
+  'cn',
+  'kr',
+  'hk',
+  'tw',
+  'es',
+  'it',
+  'at',
+  'cz',
+  'ro',
+  'hu',
+  'pt',
+  'ar',
+  'mx',
+  'il',
+  'ae',
+  'sa',
+  'za',
+  'lv',
+  'lt',
+  'ee',
+  'md',
+  'by',
+  'kz',
+  'ge',
+  'am',
+  'az',
+  'id',
+  'my',
+  'th',
+  'vn',
+  'ph',
+  'pk',
+  'eg',
+  'ng',
+  'dk',
+  'be',
+  'sk',
+  'bg',
+  'rs',
+  'hr',
+  'gr',
+  'ie',
+  'lu',
+  'is',
+  'nz',
+  'cl',
+  'co',
+  'pe',
+  'uk',
 ]);
 
 const HOST_SUFFIX_BLACKLIST = new Set([
-  'com', 'net', 'org', 'io', 'to', 'cc', 'me', 'tv', 'xyz', 'info', 'pro',
-  'top', 'site', 'online', 'click', 'link', 'host', 'cloud', 'app', 'dev',
-  'tech', 'biz', 'name', 'one', 'vip', 'fun', 'live', 'world', 'store',
-  'space', 'website', 'icu', 'vpn', 'best', 'win', 'services', 'solutions',
-  'company', 'group', 'network', 'systems', 'digital', 'media', 'life',
+  'com',
+  'net',
+  'org',
+  'io',
+  'to',
+  'cc',
+  'me',
+  'tv',
+  'xyz',
+  'info',
+  'pro',
+  'top',
+  'site',
+  'online',
+  'click',
+  'link',
+  'host',
+  'cloud',
+  'app',
+  'dev',
+  'tech',
+  'biz',
+  'name',
+  'one',
+  'vip',
+  'fun',
+  'live',
+  'world',
+  'store',
+  'space',
+  'website',
+  'icu',
+  'vpn',
+  'best',
+  'win',
+  'services',
+  'solutions',
+  'company',
+  'group',
+  'network',
+  'systems',
+  'digital',
+  'media',
+  'life',
 ]);
 
 function stripRegistrableSuffix(hostLower: string): string[] {
@@ -161,12 +611,14 @@ function stripRegistrableSuffix(hostLower: string): string[] {
   return parts.slice(0, Math.max(0, parts.length - dropCount));
 }
 
+const KEYWORD_PAIRS: Array<[string, string]> = Object.entries(KEYWORD_MAP);
+
 export function extractCountryCode(serverHost: string, name: string): string {
   const nameLower = name.toLowerCase();
   const hostLower = serverHost.toLowerCase();
   const hay = ' ' + nameLower + ' ' + hostLower + ' ';
-  for (const [kw, code] of Object.entries(KEYWORD_MAP)) {
-    if (hay.includes(kw)) return code;
+  for (let i = 0; i < KEYWORD_PAIRS.length; i++) {
+    if (hay.includes(KEYWORD_PAIRS[i][0])) return KEYWORD_PAIRS[i][1];
   }
   const subdomainLabels = stripRegistrableSuffix(hostLower);
   for (const label of subdomainLabels) {
@@ -176,7 +628,7 @@ export function extractCountryCode(serverHost: string, name: string): string {
       }
     }
   }
-  const nameTokens = nameLower.split(/[\s\-_|[\]()/\\#@.,;:]+/).filter(t => t.length === 2);
+  const nameTokens = nameLower.split(/[\s\-_|[\]()/\\#@.,;:]+/).filter((t) => t.length === 2);
   for (const t of nameTokens) {
     if (!HOST_SUFFIX_BLACKLIST.has(t) && ISO2_SET.has(t)) {
       return t === 'uk' ? 'gb' : t;
@@ -189,9 +641,15 @@ function balanceBrackets(s: string): string {
   let open = 0;
   let result = '';
   for (const ch of s) {
-    if (ch === '(') { open++; result += ch; }
-    else if (ch === ')') { if (open > 0) { open--; result += ch; } }
-    else result += ch;
+    if (ch === '(') {
+      open++;
+      result += ch;
+    } else if (ch === ')') {
+      if (open > 0) {
+        open--;
+        result += ch;
+      }
+    } else result += ch;
   }
   return result + ')'.repeat(open);
 }
@@ -233,7 +691,9 @@ async function resolveHostsToCountries(hosts: string[]): Promise<Map<string, str
   if (hosts.length === 0) return result;
   if (!useVpnStore().settings.online_geolocation) return result;
   try {
-    const codes = await invoke<(string | null)[]>('geolocate_servers', { hosts });
+    const codes = await invoke<(string | null)[]>('geolocate_servers', {
+      hosts,
+    });
     hosts.forEach((h, i) => {
       const code = codes[i];
       if (code) result.set(h, code);
@@ -330,10 +790,28 @@ interface SubscriptionInfoParsed {
   usedBytes: number | null;
 }
 
+
+
+function readVisualSettings(): Partial<AppSettings> {
+  try {
+    const raw = localStorage.getItem('wawity_settings');
+    if (!raw) return {};
+    const saved = JSON.parse(raw) as Partial<AppSettings>;
+    const out: Partial<AppSettings> = {};
+    if (saved.ui_style === 'wawity' || saved.ui_style === 'material') out.ui_style = saved.ui_style;
+    if (typeof saved.liquid_glass === 'boolean') out.liquid_glass = saved.liquid_glass;
+    if (saved.motion_level === 'simple' || saved.motion_level === 'fancy')
+      out.motion_level = saved.motion_level;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export const useVpnStore = defineStore('vpn', {
   state: () => ({
     status: { ...DEFAULT_STATUS } as VpnStatus,
-    settings: { ...DEFAULT_SETTINGS } as AppSettings,
+    settings: { ...DEFAULT_SETTINGS, ...readVisualSettings() } as AppSettings,
     subscriptions: [] as SubscriptionGroup[],
     sessions: [] as SessionRecord[],
     selectedServerId: null as string | null,
@@ -352,57 +830,117 @@ export const useVpnStore = defineStore('vpn', {
     refreshingSubIds: new Set<string>(),
     _sessionTimer: null as ReturnType<typeof setInterval> | null,
     _statusTimer: null as ReturnType<typeof setInterval> | null,
+    _pollHidden: false,
+    _pollVisibilityBound: false,
     _presenceKey: '' as string,
+    _trayKey: '' as string,
     _pingTimer: null as ReturnType<typeof setInterval> | null,
     _autoPingTimer: null as ReturnType<typeof setInterval> | null,
+    _autoPingMinutes: -1 as number,
     _prevBytesRx: 0,
     _prevBytesTx: 0,
     _prevPollTs: 0,
+    _reconnectTimer: null as ReturnType<typeof setTimeout> | null,
+    _autoReconnectArmed: false,
+    _netListenerBound: false,
+    _wasConnectedBeforeSleep: false,
+    _disconnectIntent: false,
+    _trafficNotifiedKey: '' as string,
+    serverStats: {} as Record<string, ServerStat>,
+    autoOff: { mode: 'off', endsAt: null, process: '' } as AutoOffPlan,
+    autoOffLeft: 0,
+    smartPicking: false,
+    calibrating: false,
+    _autoOffTimer: null as ReturnType<typeof setInterval> | null,
+    _autoOffBound: false,
+    roles: [] as Role[],
+    activeRoleId: 'standard' as string,
+    ruleProviders: [] as RuleProvider[],
+    hwid: '' as string,
+    serverGroups: [] as ServerGroup[],
+    favorites: [] as string[],
+    _failoverTries: 0,
+    trafficHistory: {} as Record<string, SubTrafficHistory>,
+    _trafficPersistCounter: 0,
   }),
 
   getters: {
-    allServers: (state): ServerEntry[] => state.subscriptions.flatMap(g => g.servers),
+    allServers: (state): ServerEntry[] => state.subscriptions.flatMap((g) => g.servers),
     availableServers: (state): ServerEntry[] => {
       const now = Date.now();
       return state.subscriptions
-        .filter(g => g.expiresAt === null || g.expiresAt > now)
-        .flatMap(g => g.servers);
+        .filter((g) => g.expiresAt === null || g.expiresAt > now)
+        .flatMap((g) => g.servers);
     },
     trayServers: (state): ServerEntry[] => {
       const now = Date.now();
-      const live = state.subscriptions.filter(g => g.expiresAt === null || g.expiresAt > now);
-      const active = live.find(g => g.id === state.selectedSubId);
+      const live = state.subscriptions.filter((g) => g.expiresAt === null || g.expiresAt > now);
+      const active = live.find((g) => g.id === state.selectedSubId);
       if (active) return active.servers;
-      return live.flatMap(g => g.servers);
+      return live.flatMap((g) => g.servers);
     },
-    isServerExpired: (state) => (serverId: string): boolean => {
-      const now = Date.now();
+    serverExpiryIndex: (state): Map<string, number | null> => {
+      const index = new Map<string, number | null>();
       for (const sub of state.subscriptions) {
-        if (sub.servers.some(s => s.id === serverId)) {
-          return sub.expiresAt !== null && sub.expiresAt <= now;
+        for (const srv of sub.servers) {
+          index.set(srv.id, sub.expiresAt ?? null);
         }
       }
-      return false;
+      return index;
+    },
+    isServerExpired(state): (serverId: string) => boolean {
+      void state;
+      const index = this.serverExpiryIndex;
+      return (serverId: string): boolean => {
+        const expiresAt = index.get(serverId);
+        return expiresAt !== undefined && expiresAt !== null && expiresAt <= Date.now();
+      };
     },
     selectedServer: (state): ServerEntry | null => {
       if (!state.selectedServerId) return null;
       for (const sub of state.subscriptions) {
-        const found = sub.servers.find(s => s.id === state.selectedServerId);
+        const found = sub.servers.find((s) => s.id === state.selectedServerId);
         if (found) return found;
       }
       return null;
     },
+
+    
+    serverGroupsResolved(state): { id: string; name: string; server: ServerEntry | null }[] {
+      return state.serverGroups.map((group) => {
+        for (const sub of state.subscriptions) {
+          const found = sub.servers.find((s) => s.id === group.serverId);
+          if (found) return { id: group.id, name: group.name, server: found };
+        }
+        return { id: group.id, name: group.name, server: null };
+      });
+    },
+
+    
+    favoriteServers(state): ServerEntry[] {
+      const out: ServerEntry[] = [];
+      for (const id of state.favorites) {
+        for (const sub of state.subscriptions) {
+          const found = sub.servers.find((s) => s.id === id);
+          if (found) {
+            out.push(found);
+            break;
+          }
+        }
+      }
+      return out;
+    },
     entryServer: (state): ServerEntry | null => {
       if (!state.selectedEntryServerId) return null;
       for (const sub of state.subscriptions) {
-        const found = sub.servers.find(s => s.id === state.selectedEntryServerId);
+        const found = sub.servers.find((s) => s.id === state.selectedEntryServerId);
         if (found) return found;
       }
       return null;
     },
     selectedSubscription: (state): SubscriptionGroup | null => {
       if (!state.selectedSubId) return null;
-      return state.subscriptions.find(s => s.id === state.selectedSubId) ?? null;
+      return state.subscriptions.find((s) => s.id === state.selectedSubId) ?? null;
     },
     sessionDuration: (state): string => {
       const s = state.sessionSeconds;
@@ -415,29 +953,150 @@ export const useVpnStore = defineStore('vpn', {
     speedTxFormatted: (state): string => formatSpeed(state.status.speed_tx),
     totalRxFormatted: (state): string => formatBytes(state.status.bytes_rx),
     totalTxFormatted: (state): string => formatBytes(state.status.bytes_tx),
+
+    
+    trafficToday(state): { name: string; rx: number; tx: number; total: number }[] {
+      return state.subscriptions
+        .map((sub) => {
+          const s = sumDays(state.trafficHistory[sub.id], 1);
+          return { name: sub.name, rx: s.rx, tx: s.tx, total: s.total };
+        })
+        .filter((row) => row.total > 0 || state.trafficHistory[row.name] !== undefined)
+        .sort((a, b) => b.total - a.total);
+    },
+
+    trafficWeekTotal(state): { rx: number; tx: number; total: number } {
+      let rx = 0;
+      let tx = 0;
+      for (const sub of state.subscriptions) {
+        const s = sumDays(state.trafficHistory[sub.id], 7);
+        rx += s.rx;
+        tx += s.tx;
+      }
+      
+      const known = new Set(state.subscriptions.map((s) => s.id));
+      for (const [subId, entry] of Object.entries(state.trafficHistory)) {
+        if (known.has(subId)) continue;
+        const s = sumDays(entry, 7);
+        rx += s.rx;
+        tx += s.tx;
+      }
+      return { rx, tx, total: rx + tx };
+    },
+
+    
+    trafficQuota(state): { used: number; total: number; left: number } | null {
+      const candidates = [
+        this.selectedSubscription,
+        ...state.subscriptions.filter((s) => s.id !== state.selectedSubId),
+      ];
+      for (const sub of candidates) {
+        if (!sub) continue;
+        if (sub.trafficTotalBytes && sub.trafficTotalBytes > 0) {
+          const used = sub.trafficUsedBytes ?? 0;
+          return {
+            used,
+            total: sub.trafficTotalBytes,
+            left: Math.max(0, sub.trafficTotalBytes - used),
+          };
+        }
+      }
+      return null;
+    },
     currentPingDisplay: (state): string => {
       if (!state.status.connected) return '—';
-      if (state.currentPingMs === null || state.currentPingMs === undefined) return t('connection.measuring');
+      if (state.currentPingMs === null || state.currentPingMs === undefined)
+        return t('connection.measuring');
       return `${state.currentPingMs} ms`;
     },
-  },
+    badgeByServerId(state): Record<string, { icon: string; color: string }> {
+      const map: Record<string, { icon: string; color: string }> = {};
+      state.subscriptions.forEach((sub, idx) => {
+        const fallback = badgeForIndex(idx);
+        const badge = {
+          icon: sub.badgeIcon || fallback.icon,
+          color: sub.badgeColor || fallback.color,
+        };
+        sub.servers.forEach((srv) => {
+          map[srv.id] = badge;
+        });
+      });
+      return map;
+    },
 
+    badgeBySubId(state): Record<string, { icon: string; color: string }> {
+      const map: Record<string, { icon: string; color: string }> = {};
+      state.subscriptions.forEach((sub, idx) => {
+        const fallback = badgeForIndex(idx);
+        map[sub.id] = {
+          icon: sub.badgeIcon || fallback.icon,
+          color: sub.badgeColor || fallback.color,
+        };
+      });
+      return map;
+    },
+
+    failoverServers(state) {
+      const pool = state.subscriptions.flatMap((sub) => sub.servers);
+      const picked: typeof pool = [];
+      for (const id of state.settings.failover_chain) {
+        const hit = pool.find((srv) => srv.id === id);
+        if (hit) picked.push(hit);
+      }
+      return picked;
+    },
+
+    autoOffArmed(state): boolean {
+      return state.autoOff.mode !== 'off';
+    },
+
+    autoOffLabel(state): string {
+      if (state.autoOff.mode === 'process') return state.autoOff.process;
+      if (state.autoOff.mode !== 'timer') return '';
+      const left = Math.max(0, state.autoOffLeft);
+      const h = Math.floor(left / 3600);
+      const m = Math.floor((left % 3600) / 60);
+      const sec = left % 60;
+      if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+      return `${m}:${String(sec).padStart(2, '0')}`;
+    },
+
+    activeRoleObject(state): Role | null {
+      return state.roles.find((r) => r.id === state.activeRoleId) ?? null;
+    },
+  },
   actions: {
     async boot() {
       this.loadSettings();
+      this.loadRoles();
+      this.loadServerStats();
+      this.initHwid();
+      this.restoreAutoOff();
+      this.trafficHistory = loadTrafficHistory();
+      this.bindConnectivityWatchers();
       track('app_started');
       this.syncDiscordPresence();
       this.syncHotkeys();
       this.loadSelectedServer();
       this.loadSubscriptions();
       this.loadEntrySelection();
+      this.loadServerGroups();
+      this.loadFavorites();
       listen('wawity-tray-sync', () => {
         this.loadSelectedServer();
         this.loadSubscriptions();
         this.refreshStatus().catch(() => {});
         this.syncTrayState();
       }).catch(() => {});
-      listen('wawity-hotkey-toggle', () => {
+      listen('wawity-tray-disconnect', () => {
+        this._disconnectIntent = true;
+        this._cancelReconnect();
+      }).catch(() => {});
+      listen('wawity-hotkey-toggle', (e) => {
+        if (e.payload === false) {
+          this._disconnectIntent = true;
+          this._cancelReconnect();
+        }
         this.refreshStatus().catch(() => {});
         this.syncTrayState();
       }).catch(() => {});
@@ -448,7 +1107,9 @@ export const useVpnStore = defineStore('vpn', {
       await this.refreshStatus();
       await this.reconcileStartOnBoot();
       if (this.settings.always_on && !this.status.connected) {
-        try { await invoke('set_always_on', { enabled: true }); } catch {}
+        try {
+          await invoke('set_always_on', { enabled: true });
+        } catch {}
         await this.refreshStatus();
       }
       if (this.settings.auto_connect && !this.status.connected && this.selectedServerId) {
@@ -457,10 +1118,12 @@ export const useVpnStore = defineStore('vpn', {
       this.syncTrayState();
       this.startPolling();
       this._refreshAllSubInfoStale();
+      this._autoReconnectArmed = true;
     },
 
     async bootAutoConnect() {
       for (let attempt = 1; attempt <= 4; attempt++) {
+        if (this._disconnectIntent) return;
         await this.refreshStatus().catch(() => {});
         if (this.status.connected) return;
         try {
@@ -496,8 +1159,8 @@ export const useVpnStore = defineStore('vpn', {
     },
 
     syncTrayState() {
-      invoke('sync_tray_state', {
-        servers: this.trayServers.map(s => ({
+      const payload = {
+        servers: this.trayServers.map((s) => ({
           id: s.id,
           name: s.name,
           url: s.url,
@@ -507,7 +1170,13 @@ export const useVpnStore = defineStore('vpn', {
         killSwitch: this.settings.kill_switch,
         quantumResistant: this.settings.quantum_resistant,
         bypassApps: this.settings.bypass_apps,
-      }).catch(() => {});
+      };
+      const key = JSON.stringify(payload);
+      if (key === this._trayKey) return;
+      this._trayKey = key;
+      invoke('sync_tray_state', payload).catch(() => {
+        this._trayKey = '';
+      });
     },
 
     loadEntrySelection() {
@@ -529,10 +1198,13 @@ export const useVpnStore = defineStore('vpn', {
     persistSelectedServer() {
       try {
         if (this.selectedServerId) {
-          localStorage.setItem(STORAGE_KEY_SELECTED_SERVER, JSON.stringify({
-            serverId: this.selectedServerId,
-            subId: this.selectedSubId,
-          }));
+          localStorage.setItem(
+            STORAGE_KEY_SELECTED_SERVER,
+            JSON.stringify({
+              serverId: this.selectedServerId,
+              subId: this.selectedSubId,
+            }),
+          );
         } else {
           localStorage.removeItem(STORAGE_KEY_SELECTED_SERVER);
         }
@@ -543,7 +1215,10 @@ export const useVpnStore = defineStore('vpn', {
       try {
         const raw = localStorage.getItem(STORAGE_KEY_SELECTED_SERVER);
         if (!raw) return;
-        const parsed = JSON.parse(raw) as { serverId?: string; subId?: string | null };
+        const parsed = JSON.parse(raw) as {
+          serverId?: string;
+          subId?: string | null;
+        };
         if (parsed.serverId) {
           this.selectedServerId = parsed.serverId;
           this.selectedSubId = parsed.subId ?? null;
@@ -553,16 +1228,36 @@ export const useVpnStore = defineStore('vpn', {
 
     startPolling() {
       if (this._statusTimer) return;
-      this._statusTimer = setInterval(async () => { await this.refreshStatus(); }, 2000);
+      this._pollHidden = document.hidden;
+      this._statusTimer = setInterval(
+        () => {
+          void this.refreshStatus();
+        },
+        this._pollHidden ? HIDDEN_POLL_MS : LIVE_POLL_MS,
+      );
+      if (!this._pollVisibilityBound) {
+        this._pollVisibilityBound = true;
+        document.addEventListener('visibilitychange', () => {
+          if (!this._statusTimer) return;
+          if (document.hidden === this._pollHidden) return;
+          this.stopPolling();
+          this.startPolling();
+        });
+      }
     },
 
     stopPolling() {
-      if (this._statusTimer) { clearInterval(this._statusTimer); this._statusTimer = null; }
+      if (this._statusTimer) {
+        clearInterval(this._statusTimer);
+        this._statusTimer = null;
+      }
     },
 
     startAutoPing() {
-      this.stopAutoPing();
       const minutes = this.settings.auto_ping_minutes;
+      if (this._autoPingTimer && this._autoPingMinutes === minutes) return;
+      this.stopAutoPing();
+      this._autoPingMinutes = minutes;
       if (!minutes || minutes <= 0) return;
       this._autoPingTimer = setInterval(() => {
         if (this.latencyLoading || this.autoSelectLoading) return;
@@ -572,29 +1267,46 @@ export const useVpnStore = defineStore('vpn', {
     },
 
     stopAutoPing() {
-      if (this._autoPingTimer) { clearInterval(this._autoPingTimer); this._autoPingTimer = null; }
+      if (this._autoPingTimer) {
+        clearInterval(this._autoPingTimer);
+        this._autoPingTimer = null;
+      }
+      this._autoPingMinutes = -1;
     },
 
     _startSessionTimer() {
       this.sessionSeconds = 0;
       this.sessionStartedAt = Date.now();
       if (this._sessionTimer) clearInterval(this._sessionTimer);
-      this._sessionTimer = setInterval(() => { this.sessionSeconds++; }, 1000);
+      this._sessionTimer = setInterval(() => {
+        this.sessionSeconds++;
+      }, 1000);
       this.measureCurrentPing();
       if (this._pingTimer) clearInterval(this._pingTimer);
-      this._pingTimer = setInterval(() => { this.measureCurrentPing(); }, 7000);
+      this._pingTimer = setInterval(() => {
+        this.measureCurrentPing();
+      }, 7000);
     },
 
     _stopSessionTimer() {
-      if (this._sessionTimer) { clearInterval(this._sessionTimer); this._sessionTimer = null; }
-      if (this._pingTimer) { clearInterval(this._pingTimer); this._pingTimer = null; }
+      if (this._sessionTimer) {
+        clearInterval(this._sessionTimer);
+        this._sessionTimer = null;
+      }
+      if (this._pingTimer) {
+        clearInterval(this._pingTimer);
+        this._pingTimer = null;
+      }
       this.sessionSeconds = 0;
       this.sessionStartedAt = null;
       this.currentPingMs = null;
     },
 
     async measureCurrentPing() {
-      if (!this.status.connected) { this.currentPingMs = null; return; }
+      if (!this.status.connected) {
+        this.currentPingMs = null;
+        return;
+      }
       try {
         const ms = await invoke<number | null>('measure_tunnel_latency');
         this.currentPingMs = ms;
@@ -604,10 +1316,19 @@ export const useVpnStore = defineStore('vpn', {
     },
 
     async connect(serverId?: string) {
+      
+      
+      if (this._disconnectIntent) {
+        console.warn('[wawity] connect suppressed: user disconnect intent is active');
+        return;
+      }
       const target = serverId
-        ? this.allServers.find(s => s.id === serverId)
-        : this.allServers.find(s => s.id === this.selectedServerId);
-      if (!target) { this.connectError = 'No server selected'; return; }
+        ? this.allServers.find((s) => s.id === serverId)
+        : this.allServers.find((s) => s.id === this.selectedServerId);
+      if (!target) {
+        this.connectError = 'No server selected';
+        return;
+      }
       if (this.isServerExpired(target.id)) {
         this.connectError = t('servers.subscriptionExpired');
         return;
@@ -633,21 +1354,34 @@ export const useVpnStore = defineStore('vpn', {
           entrySubUrl: entry ? entry.url : null,
           serverName: target.name,
           entryServerName: entry ? entry.name : null,
-          killSwitch: this.settings.kill_switch,
+          killSwitch: this.settings.kill_switch,
           bypassApps: this.settings.bypass_apps,
           quantumResistant: this.settings.quantum_resistant,
           privacy: {
+            dpi_profile: this.settings.dpi_profile,
             strict_route: this.settings.strict_route,
             allow_insecure_tls: this.settings.allow_insecure_tls,
             tunnel_own_traffic: this.settings.tunnel_own_traffic,
             dns_leak_guard: this.settings.dns_leak_guard,
             bootstrap_dns: this.settings.bootstrap_dns,
+            dns_remote: this.settings.dns_remote ?? 'cloudflare',
+            dns_custom_doh:
+              this.settings.dns_custom_doh && this.settings.dns_custom_doh.trim()
+                ? this.settings.dns_custom_doh.trim()
+                : null,
+            dns_block_ads: this.settings.dns_block_ads !== false,
+            dns_block_trackers: this.settings.dns_block_trackers !== false,
+            route_rules: this.compileRouteRules(),
+            route_all: this.activeRoleObject ? this.activeRoleObject.overrides.route_all : true,
           },
         });
         this.selectServer(target.id);
         await this.refreshStatus();
         this._startSessionTimer();
-        track('vpn_connected', { multihop: this.settings.multihop_enabled, protocol: this.settings.protocol });
+        track('vpn_connected', {
+          multihop: this.settings.multihop_enabled,
+          protocol: this.settings.protocol,
+        });
       } catch (err) {
         this.connectError = String(err);
         track('vpn_connect_failed', { reason: String(err).slice(0, 120) });
@@ -661,9 +1395,14 @@ export const useVpnStore = defineStore('vpn', {
       this.loading = true;
       this.connectError = null;
       this.stopPolling();
+      
+      this._disconnectIntent = true;
+      this._cancelReconnect();
+      this._wasConnectedBeforeSleep = false;
       try {
         await invoke('disconnect_vpn');
         await this.refreshStatus();
+        saveTrafficHistory(this.trafficHistory);
         this._stopSessionTimer();
         this._prevBytesRx = 0;
         this._prevBytesTx = 0;
@@ -677,8 +1416,11 @@ export const useVpnStore = defineStore('vpn', {
 
     async switchServer(serverId: string) {
       if (serverId === this.selectedServerId) return;
-      const target = this.allServers.find(s => s.id === serverId);
-      if (!target) { this.connectError = 'Server not found'; return; }
+      const target = this.allServers.find((s) => s.id === serverId);
+      if (!target) {
+        this.connectError = 'Server not found';
+        return;
+      }
       if (this.isServerExpired(target.id)) {
         this.connectError = t('servers.subscriptionExpired');
         return;
@@ -709,9 +1451,11 @@ export const useVpnStore = defineStore('vpn', {
           serverName: target.name,
           entryServerName: entry ? entry.name : null,
           bypassApps: this.settings.bypass_apps,
-          quantumResistant: this.settings.quantum_resistant,
+          quantumResistant: this.settings.quantum_resistant,
         });
         this.selectServer(serverId);
+        this._failoverTries = 0;
+        this._disconnectIntent = false;
         await this.refreshStatus();
       } catch (err) {
         this.connectError = String(err);
@@ -749,21 +1493,192 @@ export const useVpnStore = defineStore('vpn', {
           raw.speed_rx = 0;
           raw.speed_tx = 0;
         }
+        
+        if (raw.connected && this._prevPollTs > 0 && this.selectedSubId) {
+          const dRx = raw.bytes_rx - this._prevBytesRx;
+          const dTx = raw.bytes_tx - this._prevBytesTx;
+          if (dRx > 0 || dTx > 0) {
+            accumulateTraffic(this.trafficHistory, this.selectedSubId, Math.max(0, dRx), Math.max(0, dTx));
+            if (++this._trafficPersistCounter % 20 === 0) {
+              saveTrafficHistory(this.trafficHistory);
+            }
+          }
+        }
         this._prevBytesRx = raw.bytes_rx;
         this._prevBytesTx = raw.bytes_tx;
         this._prevPollTs = now;
         const wasConnected = this.status.connected;
-        this.status = raw;
+        const current = this.status as unknown as Record<string, unknown>;
+        const next = raw as unknown as Record<string, unknown>;
+        for (const key in next) {
+          if (current[key] !== next[key]) current[key] = next[key];
+        }
         this.syncDiscordPresence();
-        if (wasConnected && !raw.connected) this._stopSessionTimer();
-        else if (!wasConnected && raw.connected) this._startSessionTimer();
+        if (wasConnected && !raw.connected) {
+          saveTrafficHistory(this.trafficHistory);
+          this._stopSessionTimer();
+          this._scheduleReconnect();
+        } else if (!wasConnected && raw.connected) {
+          
+          this._disconnectIntent = false;
+          this._cancelReconnect();
+          if (this._wasConnectedBeforeSleep) {
+            this._wasConnectedBeforeSleep = false;
+            const { pushToast } = useNotifications();
+            const name = raw.server_name ?? t('toast.unknownServer');
+            pushToast('success', t('toast.reconnected'), name, 4000);
+            track('vpn_reconnected');
+          }
+          this._startSessionTimer();
+        }
+        this._checkTrafficQuota();
       } catch {}
+    },
+
+    
+
+    bindConnectivityWatchers() {
+      if (this._netListenerBound) return;
+      this._netListenerBound = true;
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          
+          void this._probeAfterWake();
+        }
+      });
+
+      window.addEventListener('online', () => {
+        void this._probeAfterWake();
+      });
+
+      window.addEventListener('offline', () => {
+        if (navigator.onLine === false && this.status.connected) {
+          
+          this._scheduleReconnect();
+        }
+      });
+
+      window.addEventListener('beforeunload', () => {
+        saveTrafficHistory(this.trafficHistory);
+      });
+    },
+
+    async _probeAfterWake() {
+      await this.refreshStatus().catch(() => {});
+      if (this.status.connected) return;
+      
+      
+      window.setTimeout(() => {
+        void this.refreshStatus().then(() => {
+          if (!this.status.connected && this.selectedServerId) {
+            this._scheduleReconnect();
+          }
+        });
+      }, 2500);
+    },
+
+    _scheduleReconnect() {
+      if (!this._autoReconnectArmed) return;
+      if (!this.settings.auto_connect || !this.selectedServerId) return;
+      
+      if (this._disconnectIntent) return;
+      if (this._reconnectTimer || this.loading || this.status.connected) return;
+      if (this.settings.always_on !== true && navigator.onLine === false) return;
+      this._wasConnectedBeforeSleep = true;
+      this._reconnectTimer = setTimeout(() => {
+        this._reconnectTimer = null;
+        void this._attemptReconnect();
+      }, 5000);
+    },
+
+    _cancelReconnect() {
+      if (this._reconnectTimer) {
+        clearTimeout(this._reconnectTimer);
+        this._reconnectTimer = null;
+      }
+    },
+
+    
+    clearDisconnectIntent() {
+      this._disconnectIntent = false;
+    },
+
+    async _attemptReconnect() {
+      if (this._disconnectIntent) return;
+      if (this.status.connected || this.loading || !this.selectedServerId) return;
+
+      
+      
+      this._failoverTries += 1;
+      if (
+        this.settings.auto_failover &&
+        this._failoverTries >= 2 &&
+        this.favorites.length > 0
+      ) {
+        try {
+          await this.autoSelectFastest();
+          const best = this.selectedServer;
+          if (best && this.favorites.includes(best.id)) {
+            this._failoverTries = 0;
+        this._disconnectIntent = false;
+            const { pushToast } = useNotifications();
+            pushToast('info', t('toast.failover'), best.name, 4000);
+          }
+        } catch {}
+        if (this.status.connected) return;
+      }
+
+      try {
+        await this.connect(this.selectedServerId);
+      } catch {}
+    },
+
+    
+
+    _checkTrafficQuota() {
+      const quota = this.trafficQuota;
+      if (!quota || quota.total <= 0) return;
+      const leftRatio = quota.left / quota.total;
+      
+      let bucket: 'none' | 'low' | 'critical' | 'empty' = 'none';
+      if (quota.left === 0) bucket = 'empty';
+      else if (leftRatio <= 0.05) bucket = 'critical';
+      else if (leftRatio <= 0.2) bucket = 'low';
+      else return;
+
+      const subName = this.selectedSubscription?.name ?? this.subscriptions[0]?.name ?? '';
+      const key = `${subName}:${bucket}`;
+      if (this._trafficNotifiedKey.startsWith(subName + ':')) {
+        const prevLevel = this._trafficNotifiedKey.split(':')[1];
+        if (
+          prevLevel === 'empty' ||
+          (prevLevel === 'critical' && bucket !== 'empty') ||
+          (prevLevel === 'low' && bucket === 'low')
+        ) {
+          return; 
+        }
+      }
+      this._trafficNotifiedKey = key;
+
+      const { pushToast } = useNotifications();
+      if (bucket === 'empty') {
+        pushToast('error', t('toast.quotaEmpty'), t('toast.quotaEmptyDesc', { name: subName }), 8000);
+      } else {
+        const leftStr = formatBytes(quota.left);
+        pushToast(
+          'warning',
+          t('toast.quotaLow'),
+          t('toast.quotaLowDesc', { left: leftStr, name: subName }),
+          7000,
+        );
+      }
     },
 
     async fetchSubscriptionPreview(url: string): Promise<{ name: string; servers: ServerEntry[] }> {
       const raw = await invoke<{ name: string; url: string; protocol: string; server: string }[]>(
         'fetch_subscription_raw',
-        { url: url.trim() }
+        { url: url.trim() },
       );
       const servers: ServerEntry[] = raw.map((s, i) => ({
         id: `preview-${i}`,
@@ -775,17 +1690,26 @@ export const useVpnStore = defineStore('vpn', {
         latencyMs: null,
       }));
       const hostname = (() => {
-        try { return new URL(url).hostname; } catch { return url.slice(0, 30); }
+        try {
+          return new URL(url).hostname;
+        } catch {
+          return url.slice(0, 30);
+        }
       })();
       return { name: hostname, servers };
     },
 
     async fetchSubscriptionInfo(url: string): Promise<SubscriptionInfoParsed> {
       try {
-        const raw = await invoke<SubscriptionInfoRaw>('get_subscription_info', { url: url.trim() });
-        const expiresAt = raw.expire !== null && raw.expire !== undefined ? raw.expire * 1000 : null;
+        const raw = await invoke<SubscriptionInfoRaw>('get_subscription_info', {
+          url: url.trim(),
+        });
+        const expiresAt =
+          raw.expire !== null && raw.expire !== undefined ? raw.expire * 1000 : null;
         const totalBytes = raw.total ?? null;
-        const hasUsage = (raw.upload !== null && raw.upload !== undefined) || (raw.download !== null && raw.download !== undefined);
+        const hasUsage =
+          (raw.upload !== null && raw.upload !== undefined) ||
+          (raw.download !== null && raw.download !== undefined);
         const usedBytes = hasUsage ? (raw.upload ?? 0) + (raw.download ?? 0) : null;
         return { expiresAt, totalBytes, usedBytes };
       } catch {
@@ -794,17 +1718,19 @@ export const useVpnStore = defineStore('vpn', {
     },
 
     _refreshSubInfoInBackground(subId: string) {
-      const sub = this.subscriptions.find(s => s.id === subId);
+      const sub = this.subscriptions.find((s) => s.id === subId);
       if (!sub) return;
-      this.fetchSubscriptionInfo(sub.url).then(info => {
-        const target = this.subscriptions.find(s => s.id === subId);
-        if (!target) return;
-        target.expiresAt = info.expiresAt;
-        target.trafficTotalBytes = info.totalBytes;
-        target.trafficUsedBytes = info.usedBytes;
-        target.infoCheckedAt = Date.now();
-        this.persistSubscriptions();
-      }).catch(() => {});
+      this.fetchSubscriptionInfo(sub.url)
+        .then((info) => {
+          const target = this.subscriptions.find((s) => s.id === subId);
+          if (!target) return;
+          target.expiresAt = info.expiresAt;
+          target.trafficTotalBytes = info.totalBytes;
+          target.trafficUsedBytes = info.usedBytes;
+          target.infoCheckedAt = Date.now();
+          this.persistSubscriptions();
+        })
+        .catch(() => {});
     },
 
     _refreshAllSubInfoStale() {
@@ -817,7 +1743,7 @@ export const useVpnStore = defineStore('vpn', {
     },
 
     async refreshSubscription(subId: string): Promise<RefreshResult> {
-      const sub = this.subscriptions.find(s => s.id === subId);
+      const sub = this.subscriptions.find((s) => s.id === subId);
       if (!sub) return { added: 0, removed: 0, error: 'Subscription not found' };
       if (this.refreshingSubIds.has(subId)) {
         return { added: 0, removed: 0, error: 'Already refreshing' };
@@ -826,11 +1752,15 @@ export const useVpnStore = defineStore('vpn', {
       try {
         const fresh = await this.fetchSubscriptionPreview(sub.url);
         if (fresh.servers.length === 0) {
-          return { added: 0, removed: 0, error: 'Subscription returned no servers' };
+          return {
+            added: 0,
+            removed: 0,
+            error: 'Subscription returned no servers',
+          };
         }
         const oldServers = sub.servers;
-        const oldByUrl = new Map(oldServers.map(s => [s.url, s]));
-        const newUrls = new Set(fresh.servers.map(s => s.url));
+        const oldByUrl = new Map(oldServers.map((s) => [s.url, s]));
+        const newUrls = new Set(fresh.servers.map((s) => s.url));
         let addedCount = 0;
         const mergedServers: ServerEntry[] = fresh.servers.map((freshSrv, i) => {
           const existing = oldByUrl.get(freshSrv.url);
@@ -840,14 +1770,15 @@ export const useVpnStore = defineStore('vpn', {
               name: freshSrv.name,
               protocol: freshSrv.protocol,
               server: freshSrv.server,
-              countryCode: existing.countryCode !== 'UN' ? existing.countryCode : freshSrv.countryCode,
+              countryCode:
+                existing.countryCode !== 'UN' ? existing.countryCode : freshSrv.countryCode,
             };
           }
           addedCount++;
           return { ...freshSrv, id: `${subId}-srv-${Date.now()}-${i}` };
         });
-        const removedCount = oldServers.filter(s => !newUrls.has(s.url)).length;
-        const removedIds = new Set(oldServers.filter(s => !newUrls.has(s.url)).map(s => s.id));
+        const removedCount = oldServers.filter((s) => !newUrls.has(s.url)).length;
+        const removedIds = new Set(oldServers.filter((s) => !newUrls.has(s.url)).map((s) => s.id));
         sub.servers = mergedServers;
         const info = await this.fetchSubscriptionInfo(sub.url);
         sub.expiresAt = info.expiresAt;
@@ -864,7 +1795,7 @@ export const useVpnStore = defineStore('vpn', {
         if (this.selectedEntryServerId && removedIds.has(this.selectedEntryServerId)) {
           this.selectEntryServer(null);
         }
-        const unresolvedNew = mergedServers.filter(s => s.countryCode === 'UN');
+        const unresolvedNew = mergedServers.filter((s) => s.countryCode === 'UN');
         this._resolveCountriesInBackground(unresolvedNew);
         return { added: addedCount, removed: removedCount, error: null };
       } catch (e) {
@@ -876,32 +1807,33 @@ export const useVpnStore = defineStore('vpn', {
 
     async measureLatencies(subId?: string) {
       const pool = subId
-        ? (this.subscriptions.find(s => s.id === subId)?.servers ?? [])
+        ? (this.subscriptions.find((s) => s.id === subId)?.servers ?? [])
         : this.allServers;
       if (pool.length === 0) return;
       this.latencyLoading = true;
       try {
-        const targets = pool.map(s => ({
+        const targets = pool.map((s) => ({
           host: s.server,
           port: parseServerPort(s.url),
         }));
         const results = await invoke<{ host: string; port: number; latency_ms: number | null }[]>(
           'ping_servers',
-          { targets }
+          { targets },
         );
-        const latencyMap = new Map(results.map(r => [r.host, r.latency_ms]));
+        const latencyMap = new Map(results.map((r) => [r.host, r.latency_ms]));
+        const poolIds = new Set(pool.map((p) => p.id));
+        let dirty = false;
         for (const sub of this.subscriptions) {
-          let dirty = false;
           for (const srv of sub.servers) {
-            if (!pool.find(p => p.id === srv.id)) continue;
+            if (!poolIds.has(srv.id)) continue;
             const lat = latencyMap.get(srv.server) ?? null;
             if (srv.latencyMs !== lat) {
               srv.latencyMs = lat;
               dirty = true;
             }
           }
-          if (dirty) this.persistSubscriptions();
         }
+        if (dirty) this.persistSubscriptions();
       } finally {
         this.latencyLoading = false;
       }
@@ -909,20 +1841,20 @@ export const useVpnStore = defineStore('vpn', {
 
     async autoSelectFastest(subId?: string) {
       const pool = subId
-        ? (this.subscriptions.find(s => s.id === subId)?.servers ?? [])
+        ? (this.subscriptions.find((s) => s.id === subId)?.servers ?? [])
         : this.allServers;
       if (pool.length === 0) return;
       this.autoSelectLoading = true;
       try {
-        const targets = pool.map(s => ({
+        const targets = pool.map((s) => ({
           host: s.server,
           port: parseServerPort(s.url),
         }));
         const results = await invoke<{ host: string; port: number; latency_ms: number | null }[]>(
           'ping_servers',
-          { targets }
+          { targets },
         );
-        const latencyMap = new Map(results.map(r => [r.host, r.latency_ms]));
+        const latencyMap = new Map(results.map((r) => [r.host, r.latency_ms]));
         for (const sub of this.subscriptions) {
           for (const srv of sub.servers) {
             const lat = latencyMap.get(srv.server) ?? null;
@@ -930,13 +1862,18 @@ export const useVpnStore = defineStore('vpn', {
           }
         }
         this.persistSubscriptions();
+        const poolByHost = new Map<string, ServerEntry>();
+        for (const srv of pool) {
+          if (!poolByHost.has(srv.server)) poolByHost.set(srv.server, srv);
+        }
+        const expired = this.isServerExpired;
         let bestMs = Infinity;
         let bestId: string | null = null;
         for (const r of results) {
           if (r.latency_ms === null) continue;
-          const srv = pool.find(s => s.server === r.host);
+          const srv = poolByHost.get(r.host);
           if (!srv) continue;
-          if (this.isServerExpired(srv.id)) continue;
+          if (expired(srv.id)) continue;
           if (r.latency_ms < bestMs) {
             bestMs = r.latency_ms;
             bestId = srv.id;
@@ -949,29 +1886,34 @@ export const useVpnStore = defineStore('vpn', {
     },
 
     _resolveCountriesInBackground(servers: ServerEntry[]) {
-      const hosts = [...new Set(
-        servers.filter(s => s.countryCode === 'UN').map(s => s.server)
-      )];
+      const hosts = [
+        ...new Set(servers.filter((s) => s.countryCode === 'UN').map((s) => s.server)),
+      ];
       if (hosts.length === 0) return;
-      resolveHostsToCountries(hosts).then(codeMap => {
-        for (const sub of this.subscriptions) {
+      resolveHostsToCountries(hosts)
+        .then((codeMap) => {
           let dirty = false;
-          for (const srv of sub.servers) {
-            if (srv.countryCode !== 'UN') continue;
-            const code = codeMap.get(srv.server);
-            if (code && code !== srv.countryCode) {
-              srv.countryCode = code;
-              dirty = true;
+          for (const sub of this.subscriptions) {
+            for (const srv of sub.servers) {
+              if (srv.countryCode !== 'UN') continue;
+              const code = codeMap.get(srv.server);
+              if (code && code !== srv.countryCode) {
+                srv.countryCode = code;
+                dirty = true;
+              }
             }
           }
           if (dirty) this.persistSubscriptions();
-        }
-      }).catch(() => {});
+        })
+        .catch(() => {});
     },
 
     addSubscription(subUrl: string, name: string, servers: ServerEntry[]) {
       const subId = `sub-${Date.now()}`;
-      const finalServers = servers.map((s, i) => ({ ...s, id: `${subId}-srv-${i}` }));
+      const finalServers = servers.map((s, i) => ({
+        ...s,
+        id: `${subId}-srv-${i}`,
+      }));
       this.subscriptions.push({
         id: subId,
         name,
@@ -995,25 +1937,25 @@ export const useVpnStore = defineStore('vpn', {
     },
 
     removeSubscription(subId: string) {
-      const sub = this.subscriptions.find(s => s.id === subId);
+      const sub = this.subscriptions.find((s) => s.id === subId);
       if (sub) {
-        const ids = new Set(sub.servers.map(s => s.id));
+        const ids = new Set(sub.servers.map((s) => s.id));
         if (this.selectedServerId && ids.has(this.selectedServerId)) {
           this.selectedServerId = null;
           this.selectedSubId = null;
           this.persistSelectedServer();
         }
       }
-      this.subscriptions = this.subscriptions.filter(s => s.id !== subId);
+      this.subscriptions = this.subscriptions.filter((s) => s.id !== subId);
       this.persistSubscriptions();
     },
 
     selectSubscription(subId: string) {
       const now = Date.now();
-      const sub = this.subscriptions.find(s => s.id === subId);
+      const sub = this.subscriptions.find((s) => s.id === subId);
       if (!sub || (sub.expiresAt !== null && sub.expiresAt <= now)) return;
       this.selectedSubId = subId;
-      const inSub = sub.servers.some(s => s.id === this.selectedServerId);
+      const inSub = sub.servers.some((s) => s.id === this.selectedServerId);
       if (!inSub) {
         this.selectedServerId = sub.servers.length > 0 ? sub.servers[0].id : null;
       }
@@ -1024,14 +1966,16 @@ export const useVpnStore = defineStore('vpn', {
     selectServer(serverId: string) {
       if (this.isServerExpired(serverId)) return;
       this.selectedServerId = serverId;
-      const sub = this.subscriptions.find(s => s.servers.some(srv => srv.id === serverId));
+      const sub = this.subscriptions.find((s) => s.servers.some((srv) => srv.id === serverId));
       this.selectedSubId = sub?.id ?? null;
       this.persistSelectedServer();
       this.syncTrayState();
     },
 
     persistSubscriptions() {
-      try { localStorage.setItem('wawity_subscriptions', JSON.stringify(this.subscriptions)); } catch {}
+      try {
+        localStorage.setItem('wawity_subscriptions', JSON.stringify(this.subscriptions));
+      } catch {}
       this.syncTrayState();
     },
 
@@ -1040,7 +1984,7 @@ export const useVpnStore = defineStore('vpn', {
         const raw = localStorage.getItem('wawity_subscriptions');
         if (raw) {
           const parsed = JSON.parse(raw) as SubscriptionGroup[];
-          this.subscriptions = parsed.map(sub => ({
+          this.subscriptions = parsed.map((sub) => ({
             ...sub,
             expiresAt: sub.expiresAt ?? null,
             trafficTotalBytes: sub.trafficTotalBytes ?? null,
@@ -1049,7 +1993,7 @@ export const useVpnStore = defineStore('vpn', {
           }));
         }
       } catch {}
-      const knownIds = new Set(this.subscriptions.flatMap(s => s.servers.map(srv => srv.id)));
+      const knownIds = new Set(this.subscriptions.flatMap((s) => s.servers.map((srv) => srv.id)));
       if (this.selectedServerId && !knownIds.has(this.selectedServerId)) {
         this.selectedServerId = null;
         this.selectedSubId = null;
@@ -1057,7 +2001,7 @@ export const useVpnStore = defineStore('vpn', {
       if (!this.selectedServerId && this.subscriptions.length > 0) {
         const now = Date.now();
         const firstSub = this.subscriptions.find(
-          s => (s.expiresAt === null || s.expiresAt > now) && s.servers.length > 0,
+          (s) => (s.expiresAt === null || s.expiresAt > now) && s.servers.length > 0,
         );
         if (firstSub) {
           this.selectedServerId = firstSub.servers[0].id;
@@ -1198,12 +2142,14 @@ export const useVpnStore = defineStore('vpn', {
       const normalized = normalizeWinPath(path);
       if (!normalized) return;
       const current = normalizePathList(this.settings.bypass_apps);
-      if (current.some(p => p.toLowerCase() === normalized.toLowerCase())) return;
+      if (current.some((p) => p.toLowerCase() === normalized.toLowerCase())) return;
       const previous = this.settings.bypass_apps;
       this.settings.bypass_apps = [...current, normalized];
       if (this.status.connected) {
         try {
-          await invoke('update_bypass_apps', { paths: this.settings.bypass_apps });
+          await invoke('update_bypass_apps', {
+            paths: this.settings.bypass_apps,
+          });
           this.persistSettings();
         } catch (err) {
           this.settings.bypass_apps = previous;
@@ -1220,13 +2166,15 @@ export const useVpnStore = defineStore('vpn', {
       const normalized = normalizeWinPath(path);
       if (!normalized) return;
       const current = normalizePathList(this.settings.bypass_apps);
-      const filtered = current.filter(p => p.toLowerCase() !== normalized.toLowerCase());
+      const filtered = current.filter((p) => p.toLowerCase() !== normalized.toLowerCase());
       if (filtered.length === current.length) return;
       const previous = this.settings.bypass_apps;
       this.settings.bypass_apps = filtered;
       if (this.status.connected) {
         try {
-          await invoke('update_bypass_apps', { paths: this.settings.bypass_apps });
+          await invoke('update_bypass_apps', {
+            paths: this.settings.bypass_apps,
+          });
           this.persistSettings();
         } catch (err) {
           this.settings.bypass_apps = previous;
@@ -1243,14 +2191,16 @@ export const useVpnStore = defineStore('vpn', {
       const normalizedNew = normalizePathList(paths);
       if (normalizedNew.length === 0) return 0;
       const current = normalizePathList(this.settings.bypass_apps);
-      const currentLower = new Set(current.map(p => p.toLowerCase()));
-      const toAdd = normalizedNew.filter(p => !currentLower.has(p.toLowerCase()));
+      const currentLower = new Set(current.map((p) => p.toLowerCase()));
+      const toAdd = normalizedNew.filter((p) => !currentLower.has(p.toLowerCase()));
       if (toAdd.length === 0) return 0;
       const previous = this.settings.bypass_apps;
       this.settings.bypass_apps = [...current, ...toAdd];
       if (this.status.connected) {
         try {
-          await invoke('update_bypass_apps', { paths: this.settings.bypass_apps });
+          await invoke('update_bypass_apps', {
+            paths: this.settings.bypass_apps,
+          });
           this.persistSettings();
         } catch (err) {
           this.settings.bypass_apps = previous;
@@ -1267,6 +2217,18 @@ export const useVpnStore = defineStore('vpn', {
 
     updateSettings(patch: Partial<AppSettings>) {
       this.settings = { ...this.settings, ...patch };
+      if (Object.prototype.hasOwnProperty.call(patch, 'telemetry')) {
+        setTelemetryAllowed(this.settings.telemetry);
+        invoke('set_telemetry_enabled', {
+          enabled: this.settings.telemetry,
+        }).catch(() => {});
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, 'motion_level')) {
+        setMotionLevel(this.settings.motion_level);
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, 'hwid_enabled')) {
+        invoke('set_hwid_enabled', { enabled: this.settings.hwid_enabled }).catch(() => {});
+      }
       this.persistSettings();
       setLanguage(this.settings.language);
       invoke('set_app_language', { language: this.settings.language }).catch(() => {});
@@ -1279,8 +2241,8 @@ export const useVpnStore = defineStore('vpn', {
       const connected = !!this.status.connected;
       let subName: string | null = null;
       if (connected && this.selectedServerId) {
-        const owner = this.subscriptions.find(g =>
-          g.servers.some(sv => sv.id === this.selectedServerId),
+        const owner = this.subscriptions.find((g) =>
+          g.servers.some((sv) => sv.id === this.selectedServerId),
         );
         subName = owner?.name ?? null;
       }
@@ -1291,6 +2253,11 @@ export const useVpnStore = defineStore('vpn', {
         connected,
         serverName: this.status.server_name ?? null,
         subscriptionName: subName,
+        countryCode: this.selectedServer?.countryCode ?? null,
+        sessionStart:
+          connected && this.sessionStartedAt
+            ? Math.floor(this.sessionStartedAt / 1000)
+            : null,
       };
       const key = JSON.stringify(payload);
       if (key === this._presenceKey) return;
@@ -1317,12 +2284,285 @@ export const useVpnStore = defineStore('vpn', {
     toggleTelemetry() {
       this.settings.telemetry = !this.settings.telemetry;
       setTelemetryAllowed(this.settings.telemetry);
-      invoke('set_telemetry_enabled', { enabled: this.settings.telemetry }).catch(() => {});
+      invoke('set_telemetry_enabled', {
+        enabled: this.settings.telemetry,
+      }).catch(() => {});
       this.persistSettings();
     },
 
+    async initHwid() {
+      await invoke('set_hwid_enabled', { enabled: this.settings.hwid_enabled }).catch(() => {});
+      await this.loadHwid();
+    },
+
+    async loadHwid(): Promise<string> {
+      try {
+        const id = await invoke<string>('get_hwid');
+        this.hwid = id;
+        return id;
+      } catch {
+        return this.hwid;
+      }
+    },
+
+    async resetHwid(): Promise<string> {
+      try {
+        const id = await invoke<string>('reset_hwid');
+        this.hwid = id;
+        return id;
+      } catch {
+        return this.hwid;
+      }
+    },
+
+    loadRoles() {
+      const builtins = builtinRoles();
+      let saved: {
+        roles?: Role[];
+        activeRoleId?: string;
+        providers?: RuleProvider[];
+      } | null = null;
+      try {
+        const raw = localStorage.getItem('wawity_roles');
+        if (raw) saved = JSON.parse(raw);
+      } catch {}
+      if (saved && Array.isArray(saved.roles)) {
+        const savedBuiltins = new Map<string, Role>(
+          saved.roles.filter((r) => r.builtin).map((r) => [r.id, r]),
+        );
+        const merged = builtins.map((base) => {
+          const sb = savedBuiltins.get(base.id);
+          if (!sb) return base;
+          return {
+            ...base,
+            rules: Array.isArray(sb.rules) ? sb.rules : base.rules,
+            providers: Array.isArray(sb.providers) ? sb.providers : base.providers,
+            overrides: { ...base.overrides, ...(sb.overrides || {}) },
+          };
+        });
+        const customs = saved.roles.filter((r) => !r.builtin);
+        this.roles = [...merged, ...customs];
+        this.ruleProviders = Array.isArray(saved.providers) ? saved.providers : [];
+        this.activeRoleId = saved.activeRoleId || 'standard';
+      } else {
+        this.roles = builtins;
+        this.ruleProviders = [];
+        this.activeRoleId = 'standard';
+      }
+      if (!this.roles.some((r) => r.id === this.activeRoleId)) {
+        this.activeRoleId = 'standard';
+      }
+    },
+
+    persistRoles() {
+      try {
+        localStorage.setItem(
+          'wawity_roles',
+          JSON.stringify({
+            roles: this.roles,
+            activeRoleId: this.activeRoleId,
+            providers: this.ruleProviders,
+          }),
+        );
+      } catch {}
+    },
+
+    rolePresets(roleId: string): RoutingRule[] {
+      return ROLE_PRESETS[roleId] ? [...ROLE_PRESETS[roleId]] : [];
+    },
+
+    createRole(name: string): string {
+      const id = `role-${Date.now()}`;
+      const role: Role = {
+        id,
+        name: name.trim() || t('roles.untitled'),
+        icon: 'Sparkles',
+        color: '#a78bfa',
+        builtin: false,
+        rules: [],
+        providers: [],
+        overrides: {
+          dpi_profile: null,
+          bootstrap_dns: null,
+          tunnel_own_traffic: null,
+          route_all: true,
+        },
+      };
+      this.roles.push(role);
+      this.persistRoles();
+      return id;
+    },
+
+    renameRole(id: string, name: string) {
+      const role = this.roles.find((r) => r.id === id);
+      if (!role || role.builtin) return;
+      role.name = name.trim() || role.name;
+      this.persistRoles();
+    },
+
+    deleteRole(id: string) {
+      const role = this.roles.find((r) => r.id === id);
+      if (!role || role.builtin) return;
+      this.roles = this.roles.filter((r) => r.id !== id);
+      if (this.activeRoleId === id) this.activeRoleId = 'standard';
+      this.persistRoles();
+    },
+
+    setRoleOverride<K extends keyof RoleOverrides>(id: string, key: K, value: RoleOverrides[K]) {
+      const role = this.roles.find((r) => r.id === id);
+      if (!role) return;
+      role.overrides[key] = value;
+      this.persistRoles();
+      if (this.activeRoleId === id) this.applyRole(id);
+    },
+
+    addRule(id: string, rule: Omit<RoutingRule, 'id'>) {
+      const role = this.roles.find((r) => r.id === id);
+      if (!role) return;
+      const value = rule.value.trim();
+      if (!value) return;
+      role.rules.push({ ...rule, value, id: `rule-${Date.now()}-${role.rules.length}` });
+      this.persistRoles();
+      if (this.activeRoleId === id && this.status.connected) this.applyRole(id);
+    },
+
+    removeRule(id: string, ruleId: string) {
+      const role = this.roles.find((r) => r.id === id);
+      if (!role) return;
+      role.rules = role.rules.filter((r) => r.id !== ruleId);
+      this.persistRoles();
+      if (this.activeRoleId === id && this.status.connected) this.applyRole(id);
+    },
+
+    async applyRole(id: string) {
+      const role = this.roles.find((r) => r.id === id);
+      if (!role) return;
+      this.activeRoleId = id;
+      const ov = role.overrides;
+      if (ov.dpi_profile) this.settings.dpi_profile = ov.dpi_profile;
+      if (ov.bootstrap_dns) this.settings.bootstrap_dns = ov.bootstrap_dns;
+      if (ov.tunnel_own_traffic !== null && ov.tunnel_own_traffic !== undefined) {
+        this.settings.tunnel_own_traffic = ov.tunnel_own_traffic;
+      }
+      this.persistSettings();
+      this.persistRoles();
+      track('role_applied', { role: role.builtin ? role.id : 'custom' });
+      if (this.status.connected && this.selectedServerId) {
+        await this.connect(this.selectedServerId);
+      }
+    },
+
+    addProvider(input: {
+      name: string;
+      url: string;
+      kind: ProviderKind;
+      action: RuleAction;
+    }): string {
+      const id = `prov-${Date.now()}`;
+      this.ruleProviders.push({
+        id,
+        name: input.name.trim() || input.url,
+        url: input.url.trim(),
+        kind: input.kind,
+        action: input.action,
+        enabled: true,
+        updatedAt: null,
+        count: 0,
+        entries: [],
+      });
+      this.persistRoles();
+      return id;
+    },
+
+    removeProvider(id: string) {
+      this.ruleProviders = this.ruleProviders.filter((p) => p.id !== id);
+      for (const role of this.roles) {
+        role.providers = role.providers.filter((p) => p !== id);
+      }
+      this.persistRoles();
+    },
+
+    toggleProviderForRole(roleId: string, providerId: string) {
+      const role = this.roles.find((r) => r.id === roleId);
+      if (!role) return;
+      if (role.providers.includes(providerId)) {
+        role.providers = role.providers.filter((p) => p !== providerId);
+      } else {
+        role.providers.push(providerId);
+      }
+      this.persistRoles();
+      if (this.activeRoleId === roleId && this.status.connected) this.applyRole(roleId);
+    },
+
+    async refreshProvider(id: string): Promise<{ ok: boolean; error?: string }> {
+      const provider = this.ruleProviders.find((p) => p.id === id);
+      if (!provider) return { ok: false, error: 'not found' };
+      try {
+        const entries = await invoke<string[]>('fetch_rule_list', { url: provider.url });
+        provider.entries = entries;
+        provider.count = entries.length;
+        provider.updatedAt = Date.now();
+        this.persistRoles();
+        if (this.status.connected && this.activeRoleObject?.providers.includes(id)) {
+          await this.applyRole(this.activeRoleId);
+        }
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    },
+
+    compileRouteRules(): RouteRuleSpec[] {
+      const role = this.roles.find((r) => r.id === this.activeRoleId);
+      if (!role) return [];
+      const groups = new Map<string, { field: string; action: RuleAction; values: string[] }>();
+      const add = (field: string, action: RuleAction, values: string[]) => {
+        const cleaned = values.map((v) => v.trim()).filter(Boolean);
+        if (!cleaned.length) return;
+        const key = `${action}|${field}`;
+        const existing = groups.get(key) || { field, action, values: [] };
+        existing.values.push(...cleaned);
+        groups.set(key, existing);
+      };
+      const fieldFor = (type: RuleMatchType): string => {
+        if (type === 'domain') return 'domain';
+        if (type === 'domainSuffix') return 'domain_suffix';
+        if (type === 'domainKeyword') return 'domain_keyword';
+        if (type === 'ip') return 'ip_cidr';
+        return 'process_name';
+      };
+      const allRules = [...this.rolePresets(role.id), ...role.rules];
+      for (const rule of allRules) {
+        if (rule.type === 'process') continue;
+        const value = rule.type === 'ip' ? normalizeCidr(rule.value) : rule.value.trim();
+        add(fieldFor(rule.type), rule.action, [value]);
+      }
+      for (const providerId of role.providers) {
+        const provider = this.ruleProviders.find((p) => p.id === providerId);
+        if (!provider || !provider.enabled || !provider.entries.length) continue;
+        if (provider.kind === 'ip') {
+          add('ip_cidr', provider.action, provider.entries.map(normalizeCidr));
+        } else {
+          add('domain_suffix', provider.action, provider.entries);
+        }
+      }
+      const order: RuleAction[] = ['block', 'direct', 'proxy'];
+      const specs: RouteRuleSpec[] = [];
+      for (const action of order) {
+        for (const group of groups.values()) {
+          if (group.action !== action) continue;
+          const spec: RouteRuleSpec = { action };
+          (spec as Record<string, unknown>)[group.field] = Array.from(new Set(group.values));
+          specs.push(spec);
+        }
+      }
+      return specs;
+    },
+
     persistSettings() {
-      try { localStorage.setItem('wawity_settings', JSON.stringify(this.settings)); } catch {}
+      try {
+        localStorage.setItem('wawity_settings', JSON.stringify(this.settings));
+      } catch {}
       this.syncTrayState();
       this.startAutoPing();
     },
@@ -1333,10 +2573,13 @@ export const useVpnStore = defineStore('vpn', {
         if (raw) this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
       } catch {}
       setTelemetryAllowed(this.settings.telemetry);
-      invoke('set_telemetry_enabled', { enabled: this.settings.telemetry }).catch(() => {});
+      invoke('set_telemetry_enabled', {
+        enabled: this.settings.telemetry,
+      }).catch(() => {});
       setLanguage(this.settings.language);
       invoke('set_app_language', { language: this.settings.language }).catch(() => {});
       this.startAutoPing();
+      setMotionLevel(this.settings.motion_level ?? 'fancy');
     },
 
     resetSettings() {
@@ -1346,6 +2589,446 @@ export const useVpnStore = defineStore('vpn', {
       invoke('set_app_language', { language: this.settings.language }).catch(() => {});
       this.syncDiscordPresence();
       this.syncHotkeys();
+    },
+
+    loadServerStats() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_STATS);
+        this.serverStats = raw ? JSON.parse(raw) : {};
+      } catch {
+        this.serverStats = {};
+      }
+    },
+
+    
+
+    loadServerGroups() {
+      try {
+        const raw = localStorage.getItem('wawity_server_groups');
+        if (raw) {
+          const parsed = JSON.parse(raw) as ServerGroup[];
+          this.serverGroups = Array.isArray(parsed)
+            ? parsed.filter((g) => g && typeof g.id === 'string' && typeof g.serverId === 'string')
+            : [];
+        }
+      } catch {}
+    },
+
+    persistServerGroups() {
+      try {
+        localStorage.setItem('wawity_server_groups', JSON.stringify(this.serverGroups));
+      } catch {}
+    },
+
+    addServerGroup(name: string, serverId: string): boolean {
+      const clean = name.trim().slice(0, 24);
+      if (!clean || !serverId) return false;
+      if (this.serverGroups.length >= 8) return false;
+      if (this.serverGroups.some((g) => g.name.toLowerCase() === clean.toLowerCase())) return false;
+      this.serverGroups.push({ id: `grp-${Date.now()}`, name: clean, serverId });
+      this.persistServerGroups();
+      return true;
+    },
+
+    renameServerGroup(id: string, name: string) {
+      const group = this.serverGroups.find((g) => g.id === id);
+      const clean = name.trim().slice(0, 24);
+      if (!group || !clean) return;
+      group.name = clean;
+      this.persistServerGroups();
+    },
+
+    setGroupTarget(id: string, serverId: string) {
+      const group = this.serverGroups.find((g) => g.id === id);
+      if (!group || !serverId) return;
+      group.serverId = serverId;
+      this.persistServerGroups();
+    },
+
+    removeServerGroup(id: string) {
+      this.serverGroups = this.serverGroups.filter((g) => g.id !== id);
+      this.persistServerGroups();
+    },
+
+    
+    async activateServerGroup(groupId: string) {
+      const group = this.serverGroups.find((g) => g.id === groupId);
+      if (!group) return;
+      if (group.serverId === this.selectedServerId) return;
+      if (this.status.connected) {
+        await this.switchServer(group.serverId);
+      } else {
+        this.selectServer(group.serverId);
+      }
+    },
+
+    
+
+    loadFavorites() {
+      try {
+        const raw = localStorage.getItem('wawity_favorites');
+        if (raw) {
+          const parsed = JSON.parse(raw) as string[];
+          this.favorites = Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+        }
+      } catch {}
+    },
+
+    persistFavorites() {
+      try {
+        localStorage.setItem('wawity_favorites', JSON.stringify(this.favorites));
+      } catch {}
+    },
+
+    isFavorite(serverId: string): boolean {
+      return this.favorites.includes(serverId);
+    },
+
+    toggleFavorite(serverId: string) {
+      if (!serverId) return;
+      if (this.favorites.includes(serverId)) {
+        this.favorites = this.favorites.filter((id) => id !== serverId);
+      } else {
+        this.favorites = [...this.favorites, serverId];
+      }
+      this.persistFavorites();
+    },
+
+    async activateFavorite(serverId: string) {
+      if (!serverId) return;
+      if (this.status.connected) {
+        await this.switchServer(serverId);
+      } else {
+        this.selectServer(serverId);
+      }
+    },
+
+    persistServerStats() {
+      try {
+        localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(this.serverStats));
+      } catch {}
+    },
+
+    statFor(id: string): ServerStat {
+      const found = this.serverStats[id];
+      if (found) return found;
+      const fresh: ServerStat = {
+        id,
+        ewmaMs: 0,
+        jitterMs: 0,
+        attempts: 0,
+        drops: 0,
+        lastOkAt: 0,
+        score: 0,
+      };
+      this.serverStats[id] = fresh;
+      return fresh;
+    },
+
+    noteLatency(id: string, ms: number) {
+      if (!id || ms <= 0) return;
+      const stat = this.statFor(id);
+      const prev = stat.ewmaMs;
+      stat.ewmaMs = prev ? prev * (1 - EWMA_ALPHA) + ms * EWMA_ALPHA : ms;
+      stat.jitterMs = prev ? stat.jitterMs * 0.7 + Math.abs(ms - prev) * 0.3 : 0;
+      stat.lastOkAt = Date.now();
+      this.persistServerStats();
+    },
+
+    noteAttempt(id: string) {
+      if (!id) return;
+      this.statFor(id).attempts += 1;
+      this.persistServerStats();
+    },
+
+    noteDrop(id: string) {
+      if (!id) return;
+      this.statFor(id).drops += 1;
+      this.persistServerStats();
+    },
+
+    scoreServer(srv: { id: string; latencyMs?: number | null }): number {
+      const stat = this.serverStats[srv.id];
+      const live = typeof srv.latencyMs === 'number' && srv.latencyMs > 0 ? srv.latencyMs : 0;
+      const base =
+        stat && stat.ewmaMs > 0 ? stat.ewmaMs * 0.6 + (live || stat.ewmaMs) * 0.4 : live || 850;
+      let score = 100 - Math.min(52, base / 7);
+      if (stat) {
+        score -= Math.min(14, stat.jitterMs / 3);
+        const rate = stat.attempts ? stat.drops / stat.attempts : 0;
+        score -= rate * 34;
+        if (stat.lastOkAt && Date.now() - stat.lastOkAt < 3_600_000) score += 4;
+      }
+      return Math.max(0, Math.round(score * 10) / 10);
+    },
+
+    rankServers<T extends { id: string; latencyMs?: number | null }>(list: T[]): T[] {
+      return [...list].sort((a, b) => this.scoreServer(b) - this.scoreServer(a));
+    },
+
+    async deepProbe(list: Array<{ id: string; server: string }>): Promise<DeepSample[]> {
+      const targets = list
+        .map((srv) => {
+          const raw = (srv.server || '').trim();
+          const cut = raw.lastIndexOf(':');
+          const host = cut > 0 ? raw.slice(0, cut) : raw;
+          const port = cut > 0 ? Number(raw.slice(cut + 1)) || 443 : 443;
+          return { id: srv.id, host, port, sni: host };
+        })
+        .filter((target) => target.host.length > 2);
+      if (!targets.length) return [];
+      return await invoke<DeepSample[]>('probe_servers_deep', { targets });
+    },
+
+    async smartSelect() {
+      if (this.smartPicking) return;
+      this.smartPicking = true;
+      this.autoSelectLoading = true;
+      try {
+        const pool = this.availableServers as Array<any>;
+        if (!pool.length) return;
+        const shortlist = this.rankServers(pool).slice(0, 14);
+        let samples: DeepSample[] = [];
+        try {
+          samples = await this.deepProbe(shortlist);
+        } catch {
+          samples = [];
+        }
+        const live = new Map(samples.map((row) => [row.id, row]));
+        let best = shortlist[0];
+        let bestScore = -999;
+        for (const srv of shortlist) {
+          const probe = live.get(srv.id);
+          let score = this.scoreServer(srv);
+          if (probe) {
+            if (!probe.reachable) {
+              score -= 60;
+            } else {
+              score = score * 0.45 + probe.score * 0.55;
+              score -= Math.min(12, probe.jitterMs / 3);
+              score -= probe.loss * 25;
+              const stat = this.statFor(srv.id);
+              stat.ewmaMs = stat.ewmaMs
+                ? stat.ewmaMs * (1 - EWMA_ALPHA) + probe.bestMs * EWMA_ALPHA
+                : probe.bestMs;
+              stat.jitterMs = probe.jitterMs;
+              stat.lastOkAt = Date.now();
+            }
+          }
+          this.statFor(srv.id).score = Math.round(score * 10) / 10;
+          if (score > bestScore) {
+            bestScore = score;
+            best = srv;
+          }
+        }
+        this.persistServerStats();
+        if (!best) return;
+        this.selectedServerId = best.id;
+        try {
+          localStorage.setItem(STORAGE_KEY_SELECTED_SERVER, best.id);
+        } catch {}
+        if (this.status.connected) {
+          try {
+            await this.switchServer(best.id);
+          } catch {}
+        }
+      } finally {
+        this.smartPicking = false;
+        this.autoSelectLoading = false;
+      }
+    },
+
+    async autoSelectSmartOrFast() {
+      if (this.settings.smart_connect) {
+        await this.smartSelect();
+        return;
+      }
+      await this.autoSelectFastest();
+    },
+
+    async calibrateFailover() {
+      if (this.calibrating) return;
+      this.calibrating = true;
+      try {
+        const pool = this.availableServers as Array<any>;
+        if (!pool.length) return;
+        const shortlist = this.rankServers(pool).slice(0, 18);
+        let samples: DeepSample[] = [];
+        try {
+          samples = await this.deepProbe(shortlist);
+        } catch {
+          samples = [];
+        }
+        const live = new Map(samples.map((row) => [row.id, row]));
+        const ranked = shortlist
+          .map((srv) => {
+            const probe = live.get(srv.id);
+            const own = this.scoreServer(srv);
+            const score = probe && probe.reachable ? probe.score * 0.6 + own * 0.4 : own - 40;
+            return { id: srv.id, score, land: String(srv.countryCode || '') };
+          })
+          .sort((a, b) => b.score - a.score);
+        const chain: string[] = [];
+        const lands = new Set<string>();
+        for (const row of ranked) {
+          if (chain.length >= 4) break;
+          if (row.land && lands.has(row.land) && chain.length < 3) continue;
+          if (row.land) lands.add(row.land);
+          chain.push(row.id);
+        }
+        this.settings.failover_chain = chain;
+        this.settings.failover_enabled = chain.length > 1;
+        this.persistSettings();
+      } finally {
+        this.calibrating = false;
+      }
+    },
+
+    addFailoverEntry(id: string) {
+      if (!id || this.settings.failover_chain.includes(id)) return;
+      this.settings.failover_chain = [...this.settings.failover_chain, id];
+      this.persistSettings();
+    },
+
+    removeFailoverEntry(id: string) {
+      this.settings.failover_chain = this.settings.failover_chain.filter((row) => row !== id);
+      if (this.settings.failover_chain.length < 2) this.settings.failover_enabled = false;
+      this.persistSettings();
+    },
+
+    moveFailoverEntry(id: string, delta: number) {
+      const chain = [...this.settings.failover_chain];
+      const at = chain.indexOf(id);
+      const to = at + delta;
+      if (at < 0 || to < 0 || to >= chain.length) return;
+      chain.splice(to, 0, chain.splice(at, 1)[0]);
+      this.settings.failover_chain = chain;
+      this.persistSettings();
+    },
+
+    async connectWithChain() {
+      const chain = [this.selectedServerId, ...this.settings.failover_chain].filter(
+        (id): id is string => Boolean(id),
+      );
+      if (!this.settings.failover_enabled || chain.length < 2) {
+        if (this.selectedServerId) this.noteAttempt(this.selectedServerId);
+        await this.connect();
+        return;
+      }
+      const seen = new Set<string>();
+      const limit = Math.max(1, this.settings.failover_retries) + 1;
+      let tries = 0;
+      for (const id of chain) {
+        
+        if (this._disconnectIntent || this.loading) return;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        if (tries >= limit) break;
+        tries += 1;
+        this.selectedServerId = id;
+        try {
+          localStorage.setItem(STORAGE_KEY_SELECTED_SERVER, id);
+        } catch {}
+        this.noteAttempt(id);
+        await this.connect();
+        if (this.status.connected) return;
+        this.noteDrop(id);
+        await new Promise((done) => setTimeout(done, 450));
+        if (this._disconnectIntent) return;
+      }
+    },
+
+    setSubscriptionBadge(subId: string, icon: string, color: string) {
+      const sub = this.subscriptions.find((row) => row.id === subId);
+      if (!sub) return;
+      sub.badgeIcon = icon;
+      sub.badgeColor = color;
+      try {
+        localStorage.setItem('wawity_subscriptions', JSON.stringify(this.subscriptions));
+      } catch {}
+    },
+
+    restoreAutoOff() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_AUTO_OFF);
+        if (!raw) return;
+        const saved = JSON.parse(raw) as AutoOffPlan;
+        if (!saved || saved.mode === 'off') return;
+        if (saved.mode === 'timer' && (!saved.endsAt || saved.endsAt <= Date.now())) {
+          localStorage.removeItem(STORAGE_KEY_AUTO_OFF);
+          return;
+        }
+        this.autoOff = saved;
+        if (saved.mode === 'process' && saved.process) {
+          invoke('arm_app_watch', { process: saved.process }).catch(() => {});
+        }
+        this.bindAutoOff();
+      } catch {}
+    },
+
+    persistAutoOff() {
+      try {
+        if (this.autoOff.mode === 'off') localStorage.removeItem(STORAGE_KEY_AUTO_OFF);
+        else localStorage.setItem(STORAGE_KEY_AUTO_OFF, JSON.stringify(this.autoOff));
+      } catch {}
+    },
+
+    armAutoOffTimer(minutes: number) {
+      const span = Math.max(1, Math.round(minutes));
+      this.autoOff = {
+        mode: 'timer',
+        endsAt: Date.now() + span * 60_000,
+        process: '',
+      };
+      this.autoOffLeft = span * 60;
+      this.persistAutoOff();
+      this.bindAutoOff();
+    },
+
+    async armAutoOffProcess(target: string) {
+      const leaf = target.trim();
+      if (!leaf) return;
+      await invoke('arm_app_watch', { process: leaf });
+      this.autoOff = { mode: 'process', endsAt: null, process: leaf };
+      this.autoOffLeft = 0;
+      this.persistAutoOff();
+      this.bindAutoOff();
+    },
+
+    async disarmAutoOff() {
+      if (this.autoOff.mode === 'process') {
+        await invoke('disarm_app_watch').catch(() => {});
+      }
+      this.autoOff = { mode: 'off', endsAt: null, process: '' };
+      this.autoOffLeft = 0;
+      if (this._autoOffTimer) {
+        clearInterval(this._autoOffTimer);
+        this._autoOffTimer = null;
+      }
+      this.persistAutoOff();
+    },
+
+    tickAutoOff() {
+      if (this.autoOff.mode !== 'timer' || !this.autoOff.endsAt) return;
+      const left = Math.max(0, Math.round((this.autoOff.endsAt - Date.now()) / 1000));
+      this.autoOffLeft = left;
+      if (left > 0) return;
+      this.disarmAutoOff();
+      if (this.status.connected) this.disconnect();
+    },
+
+    bindAutoOff() {
+      if (!this._autoOffTimer) {
+        this._autoOffTimer = setInterval(() => this.tickAutoOff(), 1000);
+      }
+      if (this._autoOffBound) return;
+      this._autoOffBound = true;
+      listen('wawity-watched-app-closed', () => {
+        this.disarmAutoOff();
+        if (this.status.connected) this.disconnect();
+      }).catch(() => {
+        this._autoOffBound = false;
+      });
     },
   },
 });
@@ -1362,4 +3045,3 @@ export function formatBytes(b: number): string {
   if (b >= 1_024) return `${(b / 1_024).toFixed(0)} KB`;
   return `${b} B`;
 }
-

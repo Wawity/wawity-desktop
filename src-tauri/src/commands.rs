@@ -631,7 +631,6 @@ pub fn finish_first_launch() -> Result<(), String> {
     std::fs::write(&marker, b"ok").map_err(|e| format!("cannot write first launch flag: {}", e))
 }
 
-
 static SPEED_HALT: Lazy<Arc<std::sync::atomic::AtomicBool>> =
     Lazy::new(|| Arc::new(std::sync::atomic::AtomicBool::new(false)));
 static SPEED_BUSY: Lazy<Arc<std::sync::atomic::AtomicBool>> =

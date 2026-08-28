@@ -34,6 +34,8 @@ export interface SubscriptionGroup {
   trafficTotalBytes: number | null;
   trafficUsedBytes: number | null;
   infoCheckedAt: number | null;
+  badgeIcon: string;
+  badgeColor: string;
 }
 
 export interface ParsedServer {
@@ -66,6 +68,8 @@ export interface AppSettings {
   split_processes: string[];
   split_templates: string[];
   theme: 'dark' | 'light';
+  ui_style: 'wawity' | 'material';
+  motion_level: 'simple' | 'fancy';
   language: 'en' | 'ru';
   discord_rpc: boolean;
   discord_rpc_show_server: boolean;
@@ -78,7 +82,19 @@ export interface AppSettings {
   tunnel_own_traffic: boolean;
   dns_leak_guard: boolean;
   bootstrap_dns: 'cloudflare' | 'quad9' | 'google';
+  dns_remote: 'cloudflare' | 'google' | 'quad9' | 'adguard';
+  dns_custom_doh: string;
+  dns_block_ads: boolean;
+  dns_block_trackers: boolean;
+  auto_failover: boolean;
   online_geolocation: boolean;
+  dpi_profile: DpiProfile;
+  smart_connect: boolean;
+  failover_enabled: boolean;
+  failover_chain: string[];
+  failover_retries: number;
+  auto_off_default_minutes: number;
+  hwid_enabled: boolean;
 }
 
 export interface SessionRecord {
@@ -106,6 +122,7 @@ export interface BlockReport {
   blocked: boolean;
   verdict: BlockVerdict;
   elapsedMs: number;
+  category: string;
 }
 
 export interface DetectedGame {
@@ -124,3 +141,141 @@ export interface SplitTemplate {
   ips: string[];
 }
 
+export type DpiProfile = 'off' | 'soft' | 'medium' | 'hard';
+
+export type AutoOffMode = 'off' | 'timer' | 'process';
+
+export interface AutoOffPlan {
+  mode: AutoOffMode;
+  endsAt: number | null;
+  process: string;
+}
+
+export interface SpeedTick {
+  phase: string;
+  mbps: number;
+  progress: number;
+  transferred: number;
+  elapsedMs: number;
+}
+
+export interface SpeedResult {
+  downloadMbps: number;
+  uploadMbps: number;
+  pingMs: number;
+  jitterMs: number;
+  loss: number;
+  colo: string;
+  exitIp: string;
+  carrier: string;
+  country: string;
+  downBytes: number;
+  upBytes: number;
+  tookMs: number;
+  aborted: boolean;
+}
+
+export interface ResolverHop {
+  ip: string;
+  country: string;
+  carrier: string;
+}
+
+export interface LeakAudit {
+  exitIp: string;
+  exitCountry: string;
+  carrier: string;
+  colo: string;
+  ipv6: string;
+  ipv6Exposed: boolean;
+  resolvers: ResolverHop[];
+  resolverCountries: string[];
+  dnsOutsideTunnel: boolean;
+  resolverCount: number;
+  tookMs: number;
+}
+
+export interface DeepSample {
+  id: string;
+  reachable: boolean;
+  connectMs: number;
+  bestMs: number;
+  jitterMs: number;
+  loss: number;
+  handshakeMs: number;
+  score: number;
+}
+
+export interface ServerStat {
+  id: string;
+  ewmaMs: number;
+  jitterMs: number;
+  attempts: number;
+  drops: number;
+  lastOkAt: number;
+  score: number;
+}
+
+export interface WatchState {
+  armed: boolean;
+  process: string;
+  running: boolean;
+}
+
+export type RuleAction = 'proxy' | 'direct' | 'block';
+
+export type RuleMatchType = 'domain' | 'domainSuffix' | 'domainKeyword' | 'ip' | 'process';
+
+export interface RoutingRule {
+  id: string;
+  type: RuleMatchType;
+  value: string;
+  action: RuleAction;
+}
+
+export type ProviderKind = 'domain' | 'ip';
+
+export interface RuleProvider {
+  id: string;
+  name: string;
+  url: string;
+  kind: ProviderKind;
+  action: RuleAction;
+  enabled: boolean;
+  updatedAt: number | null;
+  count: number;
+  entries: string[];
+}
+
+export interface RoleOverrides {
+  dpi_profile: DpiProfile | null;
+  bootstrap_dns: AppSettings['bootstrap_dns'] | null;
+  tunnel_own_traffic: boolean | null;
+  route_all: boolean;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  builtin: boolean;
+  rules: RoutingRule[];
+  providers: string[];
+  overrides: RoleOverrides;
+}
+
+export interface RouteRuleSpec {
+  domain?: string[];
+  domain_suffix?: string[];
+  domain_keyword?: string[];
+  ip_cidr?: string[];
+  process_name?: string[];
+  action: RuleAction;
+}
+
+export interface ServerGroup {
+  id: string;
+  name: string;
+  serverId: string;
+}

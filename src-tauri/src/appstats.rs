@@ -13,7 +13,6 @@ use windows::Win32::System::Threading::{
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
-
 #[repr(C)]
 struct RawTcpRow {
     state: u32,
@@ -37,7 +36,6 @@ type GetPerTcpConnectionETypeFn = unsafe extern "system" fn(
     u32,
 ) -> u32;
 
-
 fn get_per_tcp_connection_etype() -> Option<GetPerTcpConnectionETypeFn> {
     static FN: OnceLock<Option<GetPerTcpConnectionETypeFn>> = OnceLock::new();
     *FN.get_or_init(|| unsafe {
@@ -55,7 +53,6 @@ fn get_per_tcp_connection_etype() -> Option<GetPerTcpConnectionETypeFn> {
 }
 
 const TCP_ESTATS_DATA_PATH_TCP_ROW_V0: u32 = 0;
-
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -258,7 +258,7 @@ fn scan_nekoray() -> (ClientReport, Vec<MigratedSubscription>) {
     let mut subs = Vec::new();
     if groups_path.exists() {
         if let Ok(text) = std::fs::read_to_string(&groups_path) {
-            // group entries contain "url": "https://..."
+            
             for blob in text.split('{').skip(1) {
                 if let Some(seg) = blob.split("\"url\"").nth(1) {
                     let url = seg.split('"').nth(1).unwrap_or("");

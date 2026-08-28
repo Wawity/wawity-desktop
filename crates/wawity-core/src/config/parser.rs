@@ -273,6 +273,7 @@ fn parse_vmess(raw: &str) -> Result<ProxyConfig, VpnError> {
         path: Option<String>,
         host: Option<String>,
         #[serde(rename = "type")]
+        #[allow(dead_code)]
         header_type: Option<String>,
         #[serde(rename = "grpcServiceName")]
         grpc_service_name: Option<String>,

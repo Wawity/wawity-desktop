@@ -1,0 +1,32 @@
+# Node
+node_modules/
+
+# Vite / frontend build
+dist/
+dist-build/
+
+# Rust build artifacts
+target/
+src-tauri/target/
+
+# Local cargo config & home (mirror settings, registry cache)
+.cargo/
+.cargo-home/
+
+# Installers / release artifacts
+installer/
+*.exe
+*.msi
+*.msix
+
+# Logs
+*.log
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Env / secrets
+.env
+.env.*

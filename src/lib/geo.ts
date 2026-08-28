@@ -80,18 +80,47 @@ export function countryCoords(code: string): [number, number] {
   return [lat, lon];
 }
 
-export function countryName(code: string, lang: string): string {
-  try {
-    const label = new Intl.DisplayNames([lang], { type: 'region' }).of(code.toUpperCase());
-    return label ?? code;
-  } catch {
-    return code;
+const displayNamesByLang = new Map<string, Intl.DisplayNames | null>();
+const countryNameCache = new Map<string, string>();
+
+function displayNamesFor(lang: string): Intl.DisplayNames | null {
+  let dn = displayNamesByLang.get(lang);
+  if (dn === undefined) {
+    try {
+      dn = new Intl.DisplayNames([lang], { type: 'region' });
+    } catch {
+      dn = null;
+    }
+    displayNamesByLang.set(lang, dn);
   }
+  return dn;
 }
 
-export function worldMarkers(): Array<{ code: string; lat: number; lon: number }> {
-  return Object.entries(capitals).map(([code, [lat, lon]]) => ({ code, lat, lon }));
+export function countryName(code: string, lang: string): string {
+  const upper = code.toUpperCase();
+  const cacheKey = lang + '|' + upper;
+  const cached = countryNameCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  let label = upper;
+  try {
+    label = displayNamesFor(lang)?.of(upper) ?? upper;
+  } catch {
+    label = upper;
+  }
+  countryNameCache.set(cacheKey, label);
+  return label;
 }
+
+let markerAtlas: Array<{ code: string; lat: number; lon: number }> | null = null;
+
+export function worldMarkers(): Array<{ code: string; lat: number; lon: number }> {
+  if (!markerAtlas) {
+    markerAtlas = Object.entries(capitals).map(([code, [lat, lon]]) => ({ code, lat, lon }));
+  }
+  return markerAtlas;
+}
+
+const nameCollator = new Intl.Collator(undefined, { sensitivity: 'base' });
 
 export function groupServers(
   subs: SubscriptionGroup[],
@@ -117,20 +146,24 @@ export function groupServers(
   }
   const out: CountryBucket[] = [];
   for (const [code, servers] of byCode) {
-    const pings = servers
-      .map(s => s.latencyMs)
-      .filter((v): v is number => v !== null && v !== undefined);
+    let best: number | null = null;
+    for (const srv of servers) {
+      const ms = srv.latencyMs;
+      if (ms === null || ms === undefined) continue;
+      if (best === null || ms < best) best = ms;
+    }
     const [lat, lon] = countryCoords(code);
+    servers.sort((a, b) => (a.latencyMs ?? 99999) - (b.latencyMs ?? 99999));
     out.push({
       code,
       name: countryName(code, lang),
-      servers: [...servers].sort((a, b) => (a.latencyMs ?? 99999) - (b.latencyMs ?? 99999)),
-      best: pings.length ? Math.min(...pings) : null,
+      servers,
+      best,
       lat,
       lon,
     });
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  return out.sort((a, b) => nameCollator.compare(a.name, b.name));
 }
 
 export function pingTier(ms: number | null | undefined): string {

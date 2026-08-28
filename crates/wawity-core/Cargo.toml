@@ -1,6 +1,6 @@
 [package]
 name = "wawity-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "Wawity VPN engine: config parsing/generation, sing-box supervision, firewall lockdown"
 edition = "2021"
 

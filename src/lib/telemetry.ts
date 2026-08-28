@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/tauri';
 import type { App } from 'vue';
 
-let allowed = true;
+let allowed = false;
 const seen = new Set<string>();
 
 export function setTelemetryAllowed(value: boolean) {
@@ -27,7 +27,10 @@ function reportError(message: string, stack?: string) {
 export function initTelemetry() {
   window.addEventListener('error', (e) => {
     const err = e.error as Error | undefined;
-    reportError(String(e.message || 'window error'), err && err.stack ? String(err.stack) : undefined);
+    reportError(
+      String(e.message || 'window error'),
+      err && err.stack ? String(err.stack) : undefined,
+    );
   });
   window.addEventListener('unhandledrejection', (e) => {
     const reason = e.reason as { message?: string; stack?: string } | undefined;

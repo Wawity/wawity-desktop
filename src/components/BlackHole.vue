@@ -23,8 +23,27 @@ let texType = 0;
 let meshBuf: WebGLBuffer | null = null;
 let frameId = 0;
 let born = 0;
+let last = 0;
+let clock = 0;
 let dozing = false;
 let aimX = 0, aimY = 0, driftX = 0, driftY = 0;
+let pointerQueued = false;
+
+const MIN_FRAME_MS = 1000 / 61;
+const MAX_STEP_MS = 100;
+
+type Locs = Record<string, WebGLUniformLocation | null>;
+let sceneU: Locs = {};
+let postU: Locs = {};
+let downU: Locs = {};
+let upU: Locs = {};
+
+function grabLocs(prog: WebGLProgram, names: string[]): Locs {
+  const out: Locs = {};
+  if (!gl) return out;
+  for (const n of names) out[n] = gl.getUniformLocation(prog, n);
+  return out;
+}
 
 const vertSrc = `attribute vec2 spot;
 varying vec2 vUv;
@@ -374,16 +393,6 @@ float fbm(vec2 s){
   for(int i=0;i<4;i++){acc+=amp*noise(s);s=s*2.07+vec2(13.7,5.3);amp*=0.5;}
   return acc;
 }
-float hash3(vec3 s){return fract(sin(dot(s,vec3(127.1,311.7,74.7)))*43758.5453123);}
-float noise3(vec3 s){
-  vec3 i=floor(s);vec3 f=fract(s);
-  f=f*f*(3.0-2.0*f);
-  float a=hash3(i);float b=hash3(i+vec3(1.0,0.0,0.0));
-  float c=hash3(i+vec3(0.0,1.0,0.0));float d=hash3(i+vec3(1.0,1.0,0.0));
-  float e=hash3(i+vec3(0.0,0.0,1.0));float g=hash3(i+vec3(1.0,0.0,1.0));
-  float h=hash3(i+vec3(0.0,1.0,1.0));float k=hash3(i+vec3(1.0,1.0,1.0));
-  return mix(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),mix(mix(e,g,f.x),mix(h,k,f.x),f.y),f.z);
-}
 float fbm3(vec3 s){
   float acc=0.0;float amp=0.5;
   for(int i=0;i<5;i++){acc+=amp*noise3(s);s=s*2.03+vec3(19.7,7.3,11.1);amp*=0.5;}
@@ -565,10 +574,27 @@ function link(frag: string): WebGLProgram | null {
   const fs = compile(gl.FRAGMENT_SHADER, frag);
   if (!vs || !fs) return null;
   const p = gl.createProgram();
-  if (!p) return null;
+  if (!p) { gl.deleteShader(vs); gl.deleteShader(fs); return null; }
   gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(p)); return null; }
+  gl.deleteShader(vs); gl.deleteShader(fs);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(p)); gl.deleteProgram(p); return null; }
   return p;
+}
+
+function cacheLocs() {
+  if (!gl || !sceneProg || !postProg || !downProg || !upProg) return;
+  sceneU = grabLocs(sceneProg, ['res', 'time', 'drift']);
+  postU  = grabLocs(postProg,  ['tex', 'bloom', 'res', 'time', 'detail']);
+  downU  = grabLocs(downProg,  ['tex', 'res', 'cut']);
+  upU    = grabLocs(upProg,    ['tex', 'add', 'res']);
+  gl.useProgram(postProg);
+  gl.uniform1i(postU.tex, 0);
+  gl.uniform1i(postU.bloom, 1);
+  gl.useProgram(downProg);
+  gl.uniform1i(downU.tex, 0);
+  gl.useProgram(upProg);
+  gl.uniform1i(upU.tex, 0);
+  gl.uniform1i(upU.add, 1);
 }
 
 function bindMesh(prog: WebGLProgram) {
@@ -590,6 +616,7 @@ function wire(): boolean {
   gl.bindBuffer(gl.ARRAY_BUFFER, meshBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,3,-1,-1,3]), gl.STATIC_DRAW);
   bindMesh(sceneProg); bindMesh(postProg); bindMesh(downProg); bindMesh(upProg);
+  cacheLocs();
   const hf  = gl.getExtension('OES_texture_half_float');
   const hfl = gl.getExtension('OES_texture_half_float_linear');
   texType = hf && hfl ? hf.HALF_FLOAT_OES : gl.UNSIGNED_BYTE;
@@ -601,9 +628,12 @@ function rebuild() {
   const sp = link(getSceneSrc());
   const pp = link(postSrc);
   if (!sp || !pp) return;
+  if (sceneProg) gl.deleteProgram(sceneProg);
+  if (postProg) gl.deleteProgram(postProg);
   sceneProg = sp; postProg = pp;
   gl.bindBuffer(gl.ARRAY_BUFFER, meshBuf);
   bindMesh(sp); bindMesh(pp);
+  cacheLocs();
   if (pane.value) pane.value.width = 0;
   born = 0;
 }
@@ -682,9 +712,9 @@ function paint(t: number) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, filmT.fbo);
   gl.viewport(0, 0, filmT.w, filmT.h);
   gl.useProgram(sceneProg);
-  gl.uniform2f(gl.getUniformLocation(sceneProg, 'res'),   filmT.w, filmT.h);
-  gl.uniform1f(gl.getUniformLocation(sceneProg, 'time'),  t);
-  gl.uniform2f(gl.getUniformLocation(sceneProg, 'drift'), driftX, driftY);
+  gl.uniform2f(sceneU.res,   filmT.w, filmT.h);
+  gl.uniform1f(sceneU.time,  t);
+  gl.uniform2f(sceneU.drift, driftX, driftY);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
   gl.useProgram(downProg);
@@ -695,9 +725,8 @@ function paint(t: number) {
     gl.viewport(0, 0, dst.w, dst.h);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, src.tex);
-    gl.uniform1i(gl.getUniformLocation(downProg, 'tex'), 0);
-    gl.uniform2f(gl.getUniformLocation(downProg, 'res'), src.w, src.h);
-    gl.uniform1f(gl.getUniformLocation(downProg, 'cut'), i === 0 ? 0.30 : 0.0);
+    gl.uniform2f(downU.res, src.w, src.h);
+    gl.uniform1f(downU.cut, i === 0 ? 0.30 : 0.0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     src = dst;
   }
@@ -713,9 +742,7 @@ function paint(t: number) {
     gl.bindTexture(gl.TEXTURE_2D, carry.tex);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, add.tex);
-    gl.uniform1i(gl.getUniformLocation(upProg, 'tex'), 0);
-    gl.uniform1i(gl.getUniformLocation(upProg, 'add'), 1);
-    gl.uniform2f(gl.getUniformLocation(upProg, 'res'), carry.w, carry.h);
+    gl.uniform2f(upU.res, carry.w, carry.h);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     carry = dst;
   }
@@ -727,42 +754,50 @@ function paint(t: number) {
   gl.bindTexture(gl.TEXTURE_2D, filmT.tex);
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, carry.tex);
-  gl.uniform1i(gl.getUniformLocation(postProg, 'tex'),   0);
-  gl.uniform1i(gl.getUniformLocation(postProg, 'bloom'), 1);
-  gl.uniform2f(gl.getUniformLocation(postProg, 'res'),   cv.width, cv.height);
-  gl.uniform1f(gl.getUniformLocation(postProg, 'time'),  t);
-  gl.uniform1f(gl.getUniformLocation(postProg, 'detail'), isFancy() ? 1.0 : 0.0);
+  gl.uniform2f(postU.res,   cv.width, cv.height);
+  gl.uniform1f(postU.time,  t);
+  gl.uniform1f(postU.detail, isFancy() ? 1.0 : 0.0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
 function loop(stamp: number) {
   if (dozing) return;
-  const cv = pane.value;
-  if (cv && cv.clientWidth > 0) { if (!born) born = stamp; paint((stamp - born) / 1000); }
   frameId = requestAnimationFrame(loop);
+  if (!last) last = stamp;
+  const step = stamp - last;
+  if (step < MIN_FRAME_MS) return;
+  last = stamp;
+  clock += Math.min(step, MAX_STEP_MS) / 1000;
+  const cv = pane.value;
+  if (cv && cv.clientWidth > 0) paint(clock);
 }
 
 function onPointer(e: PointerEvent) {
-  aimX = Math.max(-1, Math.min(1, (e.clientX / window.innerWidth  - 0.5) * 2));
-  aimY = Math.max(-1, Math.min(1, (e.clientY / window.innerHeight - 0.5) * 2));
+  if (pointerQueued) return;
+  pointerQueued = true;
+  requestAnimationFrame(() => {
+    pointerQueued = false;
+    aimX = Math.max(-1, Math.min(1, (e.clientX / window.innerWidth  - 0.5) * 2));
+    aimY = Math.max(-1, Math.min(1, (e.clientY / window.innerHeight - 0.5) * 2));
+  });
 }
 
 function nap() {
   const sleep = document.hidden || !props.active;
   if (sleep && !dozing)      { dozing = true;  cancelAnimationFrame(frameId); }
-  else if (!sleep && dozing) { dozing = false; born = 0; frameId = requestAnimationFrame(loop); }
+  else if (!sleep && dozing) { dozing = false; last = 0; frameId = requestAnimationFrame(loop); }
 }
 
 watch(() => props.active, nap);
 watch(() => props.detail, rebuild);
 
 function onCtxLost(e: Event) { e.preventDefault(); cancelAnimationFrame(frameId); }
-function onCtxRestore()      { if (wire()) { born = 0; frameId = requestAnimationFrame(loop); } }
+function onCtxRestore()      { if (wire()) { last = 0; frameId = requestAnimationFrame(loop); } }
 
 function boot() {
   const cv = pane.value;
   if (!cv) return;
-  gl = cv.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+  gl = cv.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, powerPreference: 'low-power' });
   if (!gl || !wire()) return;
   paint(0);
   ready.value = true;
@@ -770,18 +805,31 @@ function boot() {
   cv.addEventListener('webglcontextlost',     onCtxLost);
   cv.addEventListener('webglcontextrestored', onCtxRestore);
   document.addEventListener('visibilitychange', nap);
-  window.addEventListener('pointermove', onPointer);
-  frameId = requestAnimationFrame(loop);
+  window.addEventListener('pointermove', onPointer, { passive: true });
+  if (props.active && !document.hidden) {
+    frameId = requestAnimationFrame(loop);
+  } else {
+    dozing = true;
+  }
 }
 
 onMounted(boot);
 onUnmounted(() => {
+  dozing = true;
   cancelAnimationFrame(frameId);
   document.removeEventListener('visibilitychange', nap);
   window.removeEventListener('pointermove', onPointer);
   const cv = pane.value;
   if (cv) { cv.removeEventListener('webglcontextlost', onCtxLost); cv.removeEventListener('webglcontextrestored', onCtxRestore); }
-  if (gl) { const ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); }
+  if (gl) {
+    dropTargets();
+    if (meshBuf) gl.deleteBuffer(meshBuf);
+    for (const p of [sceneProg, postProg, downProg, upProg]) if (p) gl.deleteProgram(p);
+    const ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext();
+  }
+  gl = null;
+  sceneProg = postProg = downProg = upProg = null;
+  meshBuf = null;
 });
 </script>
 

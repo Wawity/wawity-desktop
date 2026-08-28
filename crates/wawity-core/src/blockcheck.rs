@@ -9,29 +9,53 @@ const DNS_TIMEOUT: Duration = Duration::from_secs(3);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(4);
 const TLS_TIMEOUT: Duration = Duration::from_millis(3500);
 
-pub const BLOCK_CANDIDATES: &[(&str, &str)] = &[
-    ("youtube.com", "YouTube"),
-    ("googlevideo.com", "YouTube CDN"),
-    ("discord.com", "Discord"),
-    ("gateway.discord.gg", "Discord Gateway"),
-    ("instagram.com", "Instagram"),
-    ("facebook.com", "Facebook"),
-    ("x.com", "X"),
-    ("twitter.com", "Twitter"),
-    ("linkedin.com", "LinkedIn"),
-    ("soundcloud.com", "SoundCloud"),
-    ("medium.com", "Medium"),
-    ("patreon.com", "Patreon"),
-    ("signal.org", "Signal"),
-    ("proton.me", "Proton"),
-    ("speakerdeck.com", "Speaker Deck"),
-    ("rutracker.org", "RuTracker"),
-    ("chatgpt.com", "ChatGPT"),
-    ("openai.com", "OpenAI"),
-    ("claude.ai", "Claude"),
-    ("spotify.com", "Spotify"),
-    ("netflix.com", "Netflix"),
-    ("twitch.tv", "Twitch"),
+pub const BLOCK_CANDIDATES: &[(&str, &str, &str)] = &[
+    ("youtube.com", "YouTube", "media"),
+    ("googlevideo.com", "YouTube CDN", "media"),
+    ("netflix.com", "Netflix", "media"),
+    ("spotify.com", "Spotify", "media"),
+    ("twitch.tv", "Twitch", "media"),
+    ("soundcloud.com", "SoundCloud", "media"),
+    ("vimeo.com", "Vimeo", "media"),
+    ("rutracker.org", "RuTracker", "media"),
+    ("discord.com", "Discord", "messaging"),
+    ("gateway.discord.gg", "Discord Gateway", "messaging"),
+    ("telegram.org", "Telegram", "messaging"),
+    ("web.telegram.org", "Telegram Web", "messaging"),
+    ("signal.org", "Signal", "messaging"),
+    ("whatsapp.com", "WhatsApp", "messaging"),
+    ("viber.com", "Viber", "messaging"),
+    ("instagram.com", "Instagram", "social"),
+    ("facebook.com", "Facebook", "social"),
+    ("x.com", "X", "social"),
+    ("twitter.com", "Twitter", "social"),
+    ("linkedin.com", "LinkedIn", "social"),
+    ("reddit.com", "Reddit", "social"),
+    ("tiktok.com", "TikTok", "social"),
+    ("pinterest.com", "Pinterest", "social"),
+    ("chatgpt.com", "ChatGPT", "ai"),
+    ("openai.com", "OpenAI", "ai"),
+    ("claude.ai", "Claude", "ai"),
+    ("gemini.google.com", "Gemini", "ai"),
+    ("perplexity.ai", "Perplexity", "ai"),
+    ("huggingface.co", "Hugging Face", "ai"),
+    ("github.com", "GitHub", "dev"),
+    ("gitlab.com", "GitLab", "dev"),
+    ("npmjs.com", "npm", "dev"),
+    ("crates.io", "crates.io", "dev"),
+    ("docker.com", "Docker Hub", "dev"),
+    ("stackoverflow.com", "Stack Overflow", "dev"),
+    ("steamcommunity.com", "Steam Community", "gaming"),
+    ("epicgames.com", "Epic Games", "gaming"),
+    ("riotgames.com", "Riot Games", "gaming"),
+    ("battle.net", "Battle.net", "gaming"),
+    ("proton.me", "Proton", "privacy"),
+    ("torproject.org", "Tor Project", "privacy"),
+    ("mullvad.net", "Mullvad", "privacy"),
+    ("cloudflare.com", "Cloudflare", "infra"),
+    ("medium.com", "Medium", "infra"),
+    ("patreon.com", "Patreon", "infra"),
+    ("speakerdeck.com", "Speaker Deck", "infra"),
 ];
 
 const SINKHOLE_V4: &[[u8; 4]] = &[
@@ -67,6 +91,7 @@ impl Verdict {
 pub struct BlockReport {
     pub domain: String,
     pub label: String,
+    pub category: String,
     pub blocked: bool,
     pub verdict: Verdict,
     pub elapsed_ms: u64,
@@ -233,7 +258,11 @@ fn inspect(domain: &str, seed: u64) -> Verdict {
     }
 }
 
-pub fn probe(domains: Vec<(String, String)>) -> Vec<BlockReport> {
+pub fn synthetic_hello(sni: &str, seed: u64) -> Vec<u8> {
+    client_hello(sni, seed)
+}
+
+pub fn probe_tagged(domains: Vec<(String, String, String)>) -> Vec<BlockReport> {
     if domains.is_empty() {
         return Vec::new();
     }
@@ -252,12 +281,13 @@ pub fn probe(domains: Vec<(String, String)>) -> Vec<BlockReport> {
         crew.push(std::thread::spawn(move || {
             part.into_iter()
                 .enumerate()
-                .map(|(offset, (domain, label))| {
+                .map(|(offset, (domain, label, category))| {
                     let started = std::time::Instant::now();
                     let verdict = inspect(&domain, seed.wrapping_add(offset as u64));
                     BlockReport {
                         domain,
                         label,
+                        category,
                         blocked: verdict.is_blocked(),
                         verdict,
                         elapsed_ms: started.elapsed().as_millis() as u64,
@@ -276,11 +306,22 @@ pub fn probe(domains: Vec<(String, String)>) -> Vec<BlockReport> {
     found
 }
 
+pub fn probe(domains: Vec<(String, String)>) -> Vec<BlockReport> {
+    probe_tagged(
+        domains
+            .into_iter()
+            .map(|(domain, label)| (domain, label, "other".to_string()))
+            .collect(),
+    )
+}
+
 pub fn probe_defaults() -> Vec<BlockReport> {
-    probe(
+    probe_tagged(
         BLOCK_CANDIDATES
             .iter()
-            .map(|(domain, label)| (domain.to_string(), label.to_string()))
+            .map(|(domain, label, category)| {
+                (domain.to_string(), label.to_string(), category.to_string())
+            })
             .collect(),
     )
 }

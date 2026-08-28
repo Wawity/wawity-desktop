@@ -3,28 +3,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-
-const props = defineProps<{ active: boolean }>();
+import { ref, onMounted, onUnmounted } from 'vue';
 
 const pane = ref<HTMLCanvasElement | null>(null);
 const ready = ref(false);
 
 const RENDER_SCALE = 0.66;
 const DPR_CAP = 1.25;
-const MIN_FRAME_MS = 1000 / 61;
-const MAX_STEP_MS = 100;
 
 let gl: WebGLRenderingContext | null = null;
 let prog: WebGLProgram | null = null;
 let frame = 0;
-let clock = 0;
-let last = 0;
+let born = 0;
 let dozing = false;
-let boxW = 0;
-let boxH = 0;
-let stale = true;
-let sizer: ResizeObserver | null = null;
 let uRes: WebGLUniformLocation | null = null;
 let uTime: WebGLUniformLocation | null = null;
 
@@ -85,7 +76,7 @@ float stars(vec2 q, float cells, float cut) {
     return 0.0;
   }
   vec2 pos = fract(q * cells) - vec2(hash(cell + 7.3), hash(cell + 3.1));
-  float tw = 0.78 + 0.22 * sin(time * (0.8 + seed * 2.1) + seed * 41.0);
+  float tw = 0.72 + 0.28 * sin(time * (1.2 + seed * 3.5) + seed * 41.0);
   return exp(-dot(pos, pos) * 240.0) * tw;
 }
 
@@ -100,20 +91,19 @@ void main() {
   float r = length(p);
   float ang = atan(p.y, p.x);
 
-  float spin = time * 1.75;
+  float spin = time * 2.1;
   float axis = spin + 0.42 * sin(time * 0.19);
   float bend = ang + r * 1.7;
 
   float lobeA = max(cos(adiff(bend, axis)), 0.0) + 1e-4;
   float lobeB = max(cos(adiff(bend, axis + PI)), 0.0) + 1e-4;
-  float sharp = 21.0 / (1.0 + r * 3.0);
+  float sharp = 30.0 / (1.0 + r * 3.2);
   float beams = pow(lobeA, sharp) + pow(lobeB, sharp);
-  vec2 whorl = vec2(cos(bend), sin(bend)) * 3.0 + vec2(r * 10.0 - time * 2.6, 0.0);
-  float streaks = 0.58 + 0.42 * noise(whorl);
+  float streaks = 0.55 + 0.45 * noise(vec2(r * 10.0 - time * 2.6, bend * 3.0));
   float beamGlow = beams * exp(-r * 2.0) * streaks;
-  float halo = (pow(lobeA, sharp * 0.22) + pow(lobeB, sharp * 0.22)) * exp(-r * 1.5) * 0.34;
+  float halo = (pow(lobeA, sharp * 0.22) + pow(lobeB, sharp * 0.22)) * exp(-r * 1.5) * 0.32;
 
-  float flash = exp(-pow(adiff(axis, 0.85), 2.0) * 13.0);
+  float flash = exp(-pow(adiff(axis, 0.85), 2.0) * 22.0);
 
   float core = 0.0085 / (r * r + 0.0006);
   core += exp(-r * 34.0) * 2.0;
@@ -126,7 +116,7 @@ void main() {
     float d = abs(length(q * vec2(1.0, 2.4)) - fi * 0.082);
     rings += exp(-d * d * 5200.0) * (0.5 / fi);
   }
-  rings *= exp(-r * 2.1) * (0.6 + 0.4 * noise(vec2(spin * 0.3, r * 22.0)));
+  rings *= exp(-r * 2.1) * (0.55 + 0.45 * noise(vec2(spin * 0.3, r * 22.0)));
 
   float windA = fbm(p * 2.7 - time * 0.012) * exp(-r * 1.4);
   float windB = fbm(p * 1.4 + time * 0.008) * exp(-r * 0.9);
@@ -144,11 +134,11 @@ void main() {
   col += vec3(0.90, 0.93, 1.0) * sky * 0.75;
   col += vec3(0.50, 0.62, 1.0) * flash * 0.045;
 
-  col *= 1.0 + 0.03 * (noise(vec2(time * 0.9, 3.7)) - 0.5);
+  col *= 1.0 + 0.05 * (noise(vec2(time * 9.0, 3.7)) - 0.5);
 
   col = 1.0 - exp(-col * 1.35);
   col = aces(col);
-  col += (hash(gl_FragCoord.xy + fract(time * 0.25) * 61.7) - 0.5) * 0.010;
+  col += (hash(gl_FragCoord.xy + fract(time) * 61.7) - 0.5) * 0.012;
 
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   float alpha = clamp(lum * 1.7, 0.0, 1.0);
@@ -180,8 +170,6 @@ function wire(): boolean {
   gl.attachShader(prog, vs);
   gl.attachShader(prog, fs);
   gl.linkProgram(prog);
-  gl.deleteShader(vs);
-  gl.deleteShader(fs);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
     console.error(gl.getProgramInfoLog(prog));
     return false;
@@ -198,69 +186,51 @@ function wire(): boolean {
   gl.vertexAttribPointer(slot, 2, gl.FLOAT, false, 0, 0);
   uRes = gl.getUniformLocation(prog, 'res');
   uTime = gl.getUniformLocation(prog, 'time');
-  stale = true;
   return true;
-}
-
-function measure() {
-  const canvas = pane.value;
-  if (!canvas) return;
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
-  if (w === boxW && h === boxH) return;
-  boxW = w;
-  boxH = h;
-  stale = true;
 }
 
 function fit() {
   const canvas = pane.value;
   if (!canvas || !gl) return;
   const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
-  const w = Math.max(1, Math.round(boxW * dpr * RENDER_SCALE));
-  const h = Math.max(1, Math.round(boxH * dpr * RENDER_SCALE));
+  const w = Math.max(1, Math.round(canvas.clientWidth * dpr * RENDER_SCALE));
+  const h = Math.max(1, Math.round(canvas.clientHeight * dpr * RENDER_SCALE));
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w;
     canvas.height = h;
   }
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.uniform2f(uRes, canvas.width, canvas.height);
-  stale = false;
 }
 
 function paint(t: number) {
   const canvas = pane.value;
   if (!canvas || !gl || !prog) return;
+  fit();
+  gl.viewport(0, 0, canvas.width, canvas.height);
   gl.useProgram(prog);
-  if (stale) fit();
+  gl.uniform2f(uRes, canvas.width, canvas.height);
   gl.uniform1f(uTime, t);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
 function loop(stamp: number) {
   if (dozing) return;
+  const canvas = pane.value;
+  if (canvas && canvas.clientWidth > 0) {
+    if (!born) born = stamp;
+    paint((stamp - born) / 1000);
+  }
   frame = requestAnimationFrame(loop);
-  if (!last) last = stamp;
-  const step = stamp - last;
-  if (step < MIN_FRAME_MS) return;
-  last = stamp;
-  clock += Math.min(step, MAX_STEP_MS) / 1000;
-  if (boxW > 0 && boxH > 0) paint(clock);
 }
 
 function nap() {
-  const sleep = document.hidden || !props.active;
-  if (sleep && !dozing) {
+  if (document.hidden) {
     dozing = true;
     cancelAnimationFrame(frame);
-  } else if (!sleep && dozing) {
+  } else if (dozing) {
     dozing = false;
-    last = 0;
     frame = requestAnimationFrame(loop);
   }
 }
-
-watch(() => props.active, nap);
 
 function sink(e: Event) {
   e.preventDefault();
@@ -269,9 +239,13 @@ function sink(e: Event) {
 
 function revive() {
   if (wire()) {
-    last = 0;
+    born = 0;
     frame = requestAnimationFrame(loop);
   }
+}
+
+function refit() {
+  fit();
 }
 
 function boot() {
@@ -283,10 +257,8 @@ function boot() {
     antialias: false,
     depth: false,
     stencil: false,
-    powerPreference: 'low-power',
   });
   if (!gl || !wire()) return;
-  measure();
   paint(0);
   ready.value = true;
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -297,25 +269,16 @@ function boot() {
   canvas.addEventListener('webglcontextlost', sink);
   canvas.addEventListener('webglcontextrestored', revive);
   document.addEventListener('visibilitychange', nap);
-  sizer = new ResizeObserver(measure);
-  sizer.observe(canvas);
-  if (props.active && !document.hidden) {
-    frame = requestAnimationFrame(loop);
-  } else {
-    dozing = true;
-  }
+  window.addEventListener('resize', refit);
+  frame = requestAnimationFrame(loop);
 }
 
 onMounted(boot);
 
 onUnmounted(() => {
-  dozing = true;
   cancelAnimationFrame(frame);
   document.removeEventListener('visibilitychange', nap);
-  if (sizer) {
-    sizer.disconnect();
-    sizer = null;
-  }
+  window.removeEventListener('resize', refit);
   const canvas = pane.value;
   if (canvas) {
     canvas.removeEventListener('webglcontextlost', sink);

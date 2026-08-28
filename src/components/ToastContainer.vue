@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-vue-next';
+import { CheckCircle2, XCircle, AlertTriangle, Info, X } from '../lib/appIcons';
 import { useNotifications } from '../composables/useNotifications';
 
 const { toasts, removeToast } = useNotifications();

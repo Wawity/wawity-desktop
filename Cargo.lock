@@ -5265,7 +5265,7 @@ dependencies = [
 
 [[package]]
 name = "wawity"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.21.7",
  "chrono",
@@ -5276,6 +5276,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "thiserror 1.0.69",
@@ -5290,7 +5291,7 @@ dependencies = [
 
 [[package]]
 name = "wawity-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "clap",
@@ -5305,7 +5306,7 @@ dependencies = [
 
 [[package]]
 name = "wawity-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.21.7",
  "chrono",

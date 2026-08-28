@@ -2,7 +2,10 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import './i18n';
 import { initTelemetry, watchVueErrors } from './lib/telemetry';
+import { preloadUiFlags } from './lib/uiFlags';
 import './assets/global.css';
+
+preloadUiFlags();
 
 const params = new URLSearchParams(window.location.search);
 

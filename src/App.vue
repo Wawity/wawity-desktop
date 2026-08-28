@@ -23,7 +23,6 @@ const MIN_SPLASH_VISIBLE_MS = 400;
 const MAX_BOOT_WAIT_MS = 12000;
 const mountedAt = Date.now();
 
-/* global micro press feedback on buttons (delegated, cheap, respects reduced-motion) */
 let reducedMotion = false;
 let pressHandler: ((e: MouseEvent) => void) | null = null;
 

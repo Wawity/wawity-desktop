@@ -224,8 +224,6 @@ const stageLabel = computed(() => {
   return t(CONNECT_STAGES[idx]);
 });
 
-/* ---------- copy + ip status ---------- */
-
 const serverCopied = ref(false);
 const copyBtnRef = ref<HTMLElement | null>(null);
 const ipPillTextRef = ref<HTMLElement | null>(null);
@@ -237,7 +235,6 @@ const ipPillLabel = computed(() => {
   return t('connection.ipExposed');
 });
 
-/* smooth blur-swap of the pill text on every state change */
 watch(ipPillLabel, async () => {
   await nextTick();
   if (!isFancy()) return;
@@ -338,7 +335,7 @@ function celebrate() {
   flash.value = true;
   burst.value = true;
 
-  /* GSAP: burst ring flies out with expo ease, button pops softly */
+  
   if (isFancy()) {
     const btn = powerBtnRef.value;
     if (btn) {
@@ -392,7 +389,6 @@ async function toggle() {
     await vpnStore.disconnect();
     return;
   }
-  // explicit user action — allow gated connect()
   vpnStore.clearDisconnectIntent();
   if (!vpnStore.selectedServerId) {
     vpnStore.connectError = t('connection.selectServerFirst');
@@ -921,8 +917,6 @@ onUnmounted(() => {
     opacity: 0.45;
   }
 }
-
-/* ---------- ip status pill ---------- */
 
 .ip-pill {
   display: inline-flex;

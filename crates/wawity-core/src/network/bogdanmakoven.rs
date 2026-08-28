@@ -26,7 +26,7 @@ pub fn read_interface_stats(alias: &str) -> (u64, u64) {
             }
         }
 
-        FreeMibTable(table_ptr as *const core::ffi::c_void);
+        let _ = FreeMibTable(table_ptr as *const core::ffi::c_void);
         result_bytes
     }
 }

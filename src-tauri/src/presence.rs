@@ -145,7 +145,7 @@ fn run_worker(rx: Receiver<PresencePayload>) {
         let ru = snapshot.language == "ru";
         let version = env!("CARGO_PKG_VERSION");
 
-        // --- общие элементы ---
+        
         let large_text = format!("wawity v{version}");
         let buttons = vec![
             Button::new("Download wawity", DOWNLOAD_URL),
@@ -185,7 +185,7 @@ fn run_worker(rx: Receiver<PresencePayload>) {
 
             let result = c.set_activity(activity);
             if result.is_err() {
-                // повтор без кнопок: некоторые сборки Discord их отклоняют
+                
                 let assets = Assets::new()
                     .large_image("rpc")
                     .large_text(large_text.as_str())
