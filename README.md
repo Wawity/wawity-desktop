@@ -57,6 +57,7 @@ The product ships in two flavors from the same codebase:
 - Configurable global hotkeys (works even when the window is hidden).
 - Native desktop notifications.
 - Discord Rich Presence integration (optionally shows connected server/subscription).
+- Built-in network tools: server reachability checks, speed test, and DNS/IP leak diagnostics (`src/views/extra/`).
 - Auto-start on boot, with an option to launch minimized to tray.
 - Animated “space objects” background (black hole / pulsar / neutron star / nebula) with a togglable detail level (simple vs. cinematic) for lower-end GPUs.
 - Bilingual interface: English and Russian, switchable at runtime.
@@ -106,6 +107,7 @@ wawity/
 ├── src/
 │   ├── components/          Vue components (UI + animated backgrounds)
 │   ├── views/                Connection / Servers / Analysis / Settings
+│   ├── views/extra/          Reachability / SpeedTest / Leaks utilities
 │   ├── stores/                Pinia store (vpn.ts)
 │   ├── i18n/                   en.ts / ru.ts locales
 │   ├── composables/
@@ -113,9 +115,9 @@ wawity/
 │   └── router/
 ├── installer/                installer Cargo project + NSIS-like UI
 ├── telemetry-relay/          optional telemetry relay (Node.js)
+├── .github/workflows/        release CI (builds and attaches installers)
 ├── build.bat                  interactive build menu
 ├── fix-cargo-mirror.bat        disables a global cargo registry mirror
-├── init.ps1                     generates a full source dump for review
 ├── package.json
 ├── Cargo.toml                  workspace manifest
 └── tsconfig*.json / vite.config.ts
@@ -163,13 +165,11 @@ The script auto-detects a global cargo registry mirror (`replace-with`) and, if 
 
 The installer packaging step (`installer\`) expects these files to exist before it runs:
 
-- `installer/payload/MicrosoftEdgeWebView2Setup.exe` — WebView2 Evergreen Bootstrapper (download separately).
+- `installer/payload/MicrosoftEdgeWebView2Setup.exe` — WebView2 Evergreen Bootstrapper (bundled in the repo).
 - `src-tauri/binaries/sing-box-x86_64.exe` and `src-tauri/binaries/wintun.dll` — already bundled in this repo.
 - `src-tauri/rulesets/*.srs` — geosite rules for ad/tracker blocking, already bundled.
 
 `build.bat` stages these into `installer/payload/app.zip` and then builds the `installer` Cargo project, which produces `WawitySetup-Desktop.exe` / `WawitySetup-CLI.exe` in `dist-build\`.
-
-> `init.ps1` is a development utility that dumps the entire readable source tree (excluding `node_modules`, `target`, `dist`, etc.) into a single timestamped `.txt` file for review — it has no effect on the actual build.
 
 ## Telemetry
 

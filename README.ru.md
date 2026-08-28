@@ -57,6 +57,7 @@ Wawity подключается к серверам-прокси по станд
 - Настраиваемые глобальные горячие клавиши (работают даже когда окно скрыто).
 - Нативные уведомления.
 - Интеграция с Discord Rich Presence (опционально показывает подключённый сервер/подписку).
+- Встроенные сетевые утилиты: проверка доступности серверов, тест скорости и диагностика утечек DNS/IP (`src/views/extra/`).
 - Автозапуск при старте системы с возможностью запуска свёрнутым в трей.
 - Анимированный космический фон (чёрная дыра / пульсар / нейтронная звезда / туманность) с переключаемым уровнем детализации (простой/кинематографичный) для слабых видеокарт.
 - Двуязычный интерфейс: английский и русский, переключаются на ходу.
@@ -106,6 +107,7 @@ wawity/
 ├── src/
 │   ├── components/          Vue-компоненты (UI + анимированные фоны)
 │   ├── views/                Connection / Servers / Analysis / Settings
+│   ├── views/extra/          утилиты Reachability / SpeedTest / Leaks
 │   ├── stores/                Pinia-хранилище (vpn.ts)
 │   ├── i18n/                   локали en.ts / ru.ts
 │   ├── composables/
@@ -113,9 +115,9 @@ wawity/
 │   └── router/
 ├── installer/                Cargo-проект установщика + UI в стиле NSIS
 ├── telemetry-relay/          опциональный релей телеметрии (Node.js)
+├── .github/workflows/        CI релизов (сборка и публикация установщиков)
 ├── build.bat                  интерактивное меню сборки
 ├── fix-cargo-mirror.bat        отключает глобальное зеркало реестра cargo
-├── init.ps1                     генерирует полный дамп исходников для ревью
 ├── package.json
 ├── Cargo.toml                  манифест workspace
 └── tsconfig*.json / vite.config.ts
@@ -163,13 +165,11 @@ target/release/wawity.exe
 
 Перед запуском упаковки установщика (`installer\`) должны существовать следующие файлы:
 
-- `installer/payload/MicrosoftEdgeWebView2Setup.exe` — загрузчик WebView2 Evergreen Bootstrapper (скачивается отдельно).
+- `installer/payload/MicrosoftEdgeWebView2Setup.exe` — загрузчик WebView2 Evergreen Bootstrapper (уже в репозитории).
 - `src-tauri/binaries/sing-box-x86_64.exe` и `src-tauri/binaries/wintun.dll` — уже включены в репозиторий.
 - `src-tauri/rulesets/*.srs` — geosite-правила для блокировки рекламы/трекеров, уже включены.
 
 `build.bat` упаковывает всё это в `installer/payload/app.zip`, а затем собирает Cargo-проект `installer`, который создаёт `WawitySetup-Desktop.exe` / `WawitySetup-CLI.exe` в папке `dist-build\`.
-
-> `init.ps1` — вспомогательный скрипт для разработки: собирает всё дерево читаемых исходников (кроме `node_modules`, `target`, `dist` и т. п.) в один текстовый файл с таймстампом для ревью. На саму сборку он не влияет.
 
 ## Телеметрия
 

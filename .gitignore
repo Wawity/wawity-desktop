@@ -8,16 +8,15 @@ dist-build/
 # Rust build artifacts
 target/
 src-tauri/target/
+installer/target/
 
 # Local cargo config & home (mirror settings, registry cache)
 .cargo/
 .cargo-home/
+installer/.cargo/
 
-# Installers / release artifacts
-installer/
-*.exe
-*.msi
-*.msix
+# PS1 scripts (dev utilities, not part of the build)
+*.ps1
 
 # Logs
 *.log
