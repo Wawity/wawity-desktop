@@ -1,17 +1,22 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(dependency_on_unit_never_type_fallback)]
 mod appicons;
+mod appstats;
+mod appwatch;
 mod commands;
+mod coreinfo;
+mod migrate;
 pub use wawity_core::{config, constants, error, network, process, util};
 mod games;
 mod hotkeys;
+mod hwid;
 mod installed;
 mod presence;
 mod telemetry;
 
 use commands::{
     add_saved_server, connect_vpn, disconnect_vpn,
-    fetch_subscription, fetch_subscription_raw,
+    fetch_rule_list, fetch_subscription, fetch_subscription_raw,
     get_logs, get_saved_servers, get_start_on_boot, get_subscription_info, get_vpn_status,
     geolocate_servers, list_processes, measure_tunnel_latency, start_session, stop_session,
     switch_session, ping_servers, remove_saved_server, repair_network, resolve_own_exe_path,
@@ -572,13 +577,15 @@ fn main() {
 
     let app = tauri::Builder::default()
         .manage(state)
-        .manage(presence::PresenceLink::spawn())
+        .manage(appstats::AppTrafficState::default())
+    .manage(presence::PresenceLink::spawn())
         .invoke_handler(tauri::generate_handler![
             connect_vpn,
             disconnect_vpn,
             switch_vpn_server,
             set_always_on,
             get_vpn_status,
+            appstats::get_app_traffic,
             validate_subscription,
             get_logs,
             get_saved_servers,
@@ -589,6 +596,7 @@ fn main() {
             detect_blocked_services,
             fetch_subscription,
             fetch_subscription_raw,
+            fetch_rule_list,
             geolocate_servers,
             ping_servers,
             list_processes,
@@ -617,13 +625,27 @@ fn main() {
             appicons::collect_app_icons,
             commands::is_first_launch,
             commands::finish_first_launch,
+            commands::run_speed_test,
+            commands::cancel_speed_test,
+            commands::audit_leaks,
+            commands::probe_reachability,
+            commands::probe_servers_deep,
+            appwatch::arm_app_watch,
+            appwatch::disarm_app_watch,
+            appwatch::app_watch_state,
+            hwid::get_hwid,
+            hwid::reset_hwid,
+            hwid::set_hwid_enabled,
             telemetry::set_telemetry_enabled,
             telemetry::track_event,
             telemetry::report_error,
+            coreinfo::core_info,
+            migrate::scan_foreign_clients,
         ])
         .system_tray(SystemTray::new())
         .on_system_tray_event(on_tray_event)
         .setup(|app| {
+            hwid::init(&app.handle());
             let win = app.get_window("main").unwrap();
 
             let tray_popup = WindowBuilder::new(
