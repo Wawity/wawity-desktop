@@ -7,7 +7,7 @@ const SENTRY_DSN: &str = "https://bb87803130401b2a4da17f73cb08e715@o451176482471
 const APTABASE_APP_KEY: &str = "";
 const STATS_RELAY_URL: &str = "https://wawity.dass-awesome.workers.dev/e/k3v9x2m8qwe4rty7asd1fgh5jkl0zxc6vbn3mqp8";
 
-static ENABLED: AtomicBool = AtomicBool::new(true);
+static ENABLED: AtomicBool = AtomicBool::new(false);
 
 fn session_id() -> &'static str {
     static SESSION: OnceLock<String> = OnceLock::new();
