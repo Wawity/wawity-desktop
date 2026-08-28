@@ -22,1029 +22,1698 @@
       </button>
     </nav>
 
-    <Transition name="pane" mode="out-in">
-      <div :key="activeTab" class="pane">
-
-        <div v-if="activeTab === 'security'" class="card">
-          <div
-            ref="killSwitchRowRef"
-            class="setting-row setting-row--danger"
-            :class="{ 'setting-row--flash': flashTarget === 'killswitch' }"
-          >
-            <div class="row-left">
-              <ShieldAlert :size="16" class="row-icon row-icon--danger" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.killSwitch')" />
-                <p class="row-desc" v-text="t('settings.killSwitchDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="vpnStore.settings.kill_switch"
-              :aria-label="t('settings.killSwitch')"
-              :class="['toggle', vpnStore.settings.kill_switch ? 'toggle--accent' : '']"
-              @click="toggleKillSwitch"
-            >
-              <span :class="['toggle-thumb', vpnStore.settings.kill_switch ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div
-            ref="alwaysOnRowRef"
-            class="setting-row setting-row--danger"
-            :class="{ 'setting-row--flash': flashTarget === 'alwayson' }"
-          >
-            <div class="row-left">
-              <Lock :size="16" class="row-icon row-icon--danger" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.alwaysOn')" />
-                <p class="row-desc" v-text="t('settings.alwaysOnDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="vpnStore.settings.always_on"
-              :aria-label="t('settings.alwaysOn')"
-              :disabled="alwaysOnPending"
-              :class="['toggle', vpnStore.settings.always_on ? 'toggle--accent' : '']"
-              @click="toggleAlwaysOn"
-            >
-              <span :class="['toggle-thumb', vpnStore.settings.always_on ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Atom :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.quantum')" />
-                <p class="row-desc" v-text="t('settings.quantumDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="quantumResistant"
-              :aria-label="t('settings.quantum')"
-              :class="['toggle', quantumResistant ? 'toggle--on' : '']"
-              @click="quantumResistant = !quantumResistant"
-            >
-              <span :class="['toggle-thumb', quantumResistant ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Lock :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.strictRoute')" />
-                <p class="row-desc" v-text="t('settings.strictRouteDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="strictRoute"
-              :aria-label="t('settings.strictRoute')"
-              :class="['toggle', strictRoute ? 'toggle--on' : '']"
-              @click="strictRoute = !strictRoute"
-            >
-              <span :class="['toggle-thumb', strictRoute ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Wifi :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.dnsLeakGuard')" />
-                <p class="row-desc" v-text="t('settings.dnsLeakGuardDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="dnsLeakGuard"
-              :aria-label="t('settings.dnsLeakGuard')"
-              :class="['toggle', dnsLeakGuard ? 'toggle--on' : '']"
-              @click="dnsLeakGuard = !dnsLeakGuard"
-            >
-              <span :class="['toggle-thumb', dnsLeakGuard ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <RefreshCw :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.tunnelOwnTraffic')" />
-                <p class="row-desc" v-text="t('settings.tunnelOwnTrafficDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="tunnelOwnTraffic"
-              :aria-label="t('settings.tunnelOwnTraffic')"
-              :class="['toggle', tunnelOwnTraffic ? 'toggle--on' : '']"
-              @click="tunnelOwnTraffic = !tunnelOwnTraffic"
-            >
-              <span :class="['toggle-thumb', tunnelOwnTraffic ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <ShieldAlert :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.insecureTls')" />
-                <p class="row-desc" v-text="t('settings.insecureTlsDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="allowInsecureTls"
-              :aria-label="t('settings.insecureTls')"
-              :class="['toggle', allowInsecureTls ? 'toggle--on' : '']"
-              @click="allowInsecureTls = !allowInsecureTls"
-            >
-              <span :class="['toggle-thumb', allowInsecureTls ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Globe2 :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.bootstrapDns')" />
-                <p class="row-desc" v-text="t('settings.bootstrapDnsDesc')" />
-              </div>
-            </div>
-            <div style="display: flex; gap: 6px;">
-              <button
-                v-for="opt in bootstrapOptions"
-                :key="opt"
-                type="button"
-                :class="['seg-btn', vpnStore.settings.bootstrap_dns === opt ? 'seg-btn--active' : '']"
-                @click="setBootstrapDns(opt)"
-                v-text="opt"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="activeTab === 'connection'" class="card">
-          <div class="setting-row">
-            <div class="row-left">
-              <Power :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.startOnBoot')" />
-                <p class="row-desc" v-text="t('settings.startOnBootDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="vpnStore.settings.start_on_boot"
-              :aria-label="t('settings.startOnBoot')"
-              :disabled="startOnBootPending"
-              :class="['toggle', vpnStore.settings.start_on_boot ? 'toggle--on' : '']"
-              @click="toggleStartOnBoot"
-            >
-              <span :class="['toggle-thumb', vpnStore.settings.start_on_boot ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <Transition name="nested-reveal">
-            <div v-if="vpnStore.settings.start_on_boot" class="nested-setting-row">
+    <div ref="paneWrapRef" class="pane-wrap">
+      <Transition name="pane" mode="out-in">
+        <div :key="activeTab" class="pane">
+          <div v-if="activeTab === 'security'" class="card">
+            <div class="setting-row">
               <div class="row-left">
-                <Rocket :size="15" class="row-icon row-icon--nested" />
+                <Network :size="16" class="row-icon" />
                 <div class="row-text">
-                  <p class="row-title" v-text="t('settings.autoConnect')" />
-                  <p class="row-desc" v-text="t('settings.autoConnectDesc')" />
+                  <p class="row-title" v-text="t('settings.dpiTitle')" />
+                  <p class="row-desc" v-text="dpiHint" />
+                </div>
+              </div>
+              <div class="seg">
+                <button
+                  v-for="mode in DPI_MODES"
+                  :key="mode"
+                  type="button"
+                  :class="[
+                    'seg-btn',
+                    vpnStore.settings.dpi_profile === mode ? 'seg-btn--active' : '',
+                  ]"
+                  @click="setDpi(mode)"
+                  v-text="dpiLabel(mode)"
+                />
+              </div>
+            </div>
+
+            <div
+              ref="killSwitchRowRef"
+              class="setting-row setting-row--danger"
+              :class="{ 'setting-row--flash': flashTarget === 'killswitch' }"
+            >
+              <div class="row-left">
+                <ShieldAlert :size="16" class="row-icon row-icon--danger" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.killSwitch')" />
+                  <p class="row-desc" v-text="t('settings.killSwitchDesc')" />
                 </div>
               </div>
               <button
                 type="button"
                 role="switch"
-                :aria-checked="autoConnect"
-                :aria-label="t('settings.autoConnect')"
-                :class="['toggle', autoConnect ? 'toggle--on' : '']"
-                @click="autoConnect = !autoConnect"
+                :aria-checked="vpnStore.settings.kill_switch"
+                :aria-label="t('settings.killSwitch')"
+                :class="['toggle', vpnStore.settings.kill_switch ? 'toggle--accent' : '']"
+                @click="toggleKillSwitch"
               >
-                <span :class="['toggle-thumb', autoConnect ? 'toggle-thumb--on' : '']" />
+                <span
+                  :class="['toggle-thumb', vpnStore.settings.kill_switch ? 'toggle-thumb--on' : '']"
+                />
               </button>
             </div>
-          </Transition>
 
-          <div class="setting-row">
-            <div class="row-left">
-              <Wifi :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.lanAccess')" />
-                <p class="row-desc" v-text="t('settings.lanAccessDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="lanAccess"
-              :aria-label="t('settings.lanAccess')"
-              :class="['toggle', lanAccess ? 'toggle--on' : '']"
-              @click="lanAccess = !lanAccess"
+            <div
+              ref="alwaysOnRowRef"
+              class="setting-row setting-row--danger"
+              :class="{ 'setting-row--flash': flashTarget === 'alwayson' }"
             >
-              <span :class="['toggle-thumb', lanAccess ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Timer :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.autoPing')" />
-                <p class="row-desc" v-text="t('settings.autoPingDesc')" />
-              </div>
-            </div>
-            <select v-model.number="autoPingMinutes" class="row-select" :aria-label="t('settings.autoPing')">
-              <option :value="0" v-text="t('settings.autoPingOff')" />
-              <option
-                v-for="span in AUTO_PING_CHOICES"
-                :key="span"
-                :value="span"
-                v-text="t('settings.autoPingEvery', { count: span })"
-              />
-            </select>
-          </div>
-
-          <div
-            ref="multihopRowRef"
-            class="setting-row"
-            :class="{ 'setting-row--flash': flashTarget === 'multihop' }"
-          >
-            <div class="row-left">
-              <Shuffle :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.multihop')" />
-                <p class="row-desc" v-text="t('settings.multihopDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="multihopEnabled"
-              :aria-label="t('settings.multihop')"
-              :class="['toggle', multihopEnabled ? 'toggle--on' : '']"
-              @click="multihopEnabled = !multihopEnabled"
-            >
-              <span :class="['toggle-thumb', multihopEnabled ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Keyboard :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.hotkeys')" />
-                <p class="row-desc" v-text="t('settings.hotkeysDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="hotkeysEnabled"
-              :aria-label="t('settings.hotkeys')"
-              :class="['toggle', hotkeysEnabled ? 'toggle--on' : '']"
-              @click="hotkeysEnabled = !hotkeysEnabled"
-            >
-              <span :class="['toggle-thumb', hotkeysEnabled ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <Transition name="nested-reveal">
-            <div v-if="hotkeysEnabled" class="nested-setting-row">
               <div class="row-left">
-                <Zap :size="15" class="row-icon row-icon--nested" />
+                <Lock :size="16" class="row-icon row-icon--danger" />
                 <div class="row-text">
-                  <p class="row-title" v-text="t('settings.hotkeyToggle')" />
-                  <p class="row-desc" v-text="t('settings.hotkeyToggleDesc')" />
+                  <p class="row-title" v-text="t('settings.alwaysOn')" />
+                  <p class="row-desc" v-text="t('settings.alwaysOnDesc')" />
                 </div>
               </div>
               <button
                 type="button"
-                class="hotkey-btn"
-                :class="{ 'hotkey-btn--recording': recordingHotkey }"
-                @click="startHotkeyCapture"
-                @keydown="captureHotkey"
-                @blur="stopHotkeyCapture"
+                role="switch"
+                :aria-checked="vpnStore.settings.always_on"
+                :aria-label="t('settings.alwaysOn')"
+                :disabled="alwaysOnPending"
+                :class="['toggle', vpnStore.settings.always_on ? 'toggle--accent' : '']"
+                @click="toggleAlwaysOn"
               >
-                <span class="mono" v-text="recordingHotkey ? t('settings.hotkeyPress') : hotkeyLabel" />
+                <span
+                  :class="['toggle-thumb', vpnStore.settings.always_on ? 'toggle-thumb--on' : '']"
+                />
               </button>
             </div>
-          </Transition>
-        </div>
 
-        <div v-else-if="activeTab === 'privacy'" class="card">
-          <div class="setting-row">
-            <div class="row-left">
-              <Globe2 :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.blockTrackers')" />
-                <p class="row-desc" v-text="t('settings.blockTrackersDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="blockTrackers"
-              :aria-label="t('settings.blockTrackers')"
-              :class="['toggle', blockTrackers ? 'toggle--on' : '']"
-              @click="blockTrackers = !blockTrackers"
-            >
-              <span :class="['toggle-thumb', blockTrackers ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <MapPin :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.onlineGeo')" />
-                <p class="row-desc" v-text="t('settings.onlineGeoDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="onlineGeo"
-              :aria-label="t('settings.onlineGeo')"
-              :class="['toggle', onlineGeo ? 'toggle--on' : '']"
-              @click="onlineGeo = !onlineGeo"
-            >
-              <span :class="['toggle-thumb', onlineGeo ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Bell :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.notifications')" />
-                <p class="row-desc" v-text="t('settings.notificationsDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="notificationsEnabled"
-              :aria-label="t('settings.notifications')"
-              :class="['toggle', notificationsEnabled ? 'toggle--on' : '']"
-              @click="notificationsEnabled = !notificationsEnabled"
-            >
-              <span :class="['toggle-thumb', notificationsEnabled ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Activity :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.telemetry')" />
-                <p class="row-desc" v-text="t('settings.telemetryDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="vpnStore.settings.telemetry"
-              :aria-label="t('settings.telemetry')"
-              :class="['toggle', vpnStore.settings.telemetry ? 'toggle--on' : '']"
-              @click="vpnStore.toggleTelemetry()"
-            >
-              <span :class="['toggle-thumb', vpnStore.settings.telemetry ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Gamepad2 :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.discordRpc')" />
-                <p class="row-desc" v-text="t('settings.discordRpcDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="discordRpc"
-              :aria-label="t('settings.discordRpc')"
-              :class="['toggle', discordRpc ? 'toggle--on' : '']"
-              @click="discordRpc = !discordRpc"
-            >
-              <span :class="['toggle-thumb', discordRpc ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <Transition name="rpc-fold">
-            <div v-if="discordRpc" class="rpc-sub">
-              <div class="setting-row">
-                <div class="row-left">
-                  <MapPin :size="16" class="row-icon" />
-                  <div class="row-text">
-                    <p class="row-title" v-text="t('settings.discordRpcServer')" />
-                    <p class="row-desc" v-text="t('settings.discordRpcServerDesc')" />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="discordRpcShowServer"
-                  :aria-label="t('settings.discordRpcServer')"
-                  :class="['toggle', discordRpcShowServer ? 'toggle--on' : '']"
-                  @click="discordRpcShowServer = !discordRpcShowServer"
-                >
-                  <span :class="['toggle-thumb', discordRpcShowServer ? 'toggle-thumb--on' : '']" />
-                </button>
-              </div>
-
-              <div class="setting-row">
-                <div class="row-left">
-                  <Layers :size="16" class="row-icon" />
-                  <div class="row-text">
-                    <p class="row-title" v-text="t('settings.discordRpcSub')" />
-                    <p class="row-desc" v-text="t('settings.discordRpcSubDesc')" />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="discordRpcShowSub"
-                  :aria-label="t('settings.discordRpcSub')"
-                  :class="['toggle', discordRpcShowSub ? 'toggle--on' : '']"
-                  @click="discordRpcShowSub = !discordRpcShowSub"
-                >
-                  <span :class="['toggle-thumb', discordRpcShowSub ? 'toggle-thumb--on' : '']" />
-                </button>
-              </div>
-            </div>
-          </Transition>
-        </div>
-
-        <div v-else-if="activeTab === 'appearance'" class="card">
-          <div class="setting-row">
-            <div class="row-left">
-              <Orbit :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.blackHole')" />
-                <p class="row-desc" v-text="t('settings.blackHoleDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="blackHoleBg"
-              :aria-label="t('settings.blackHole')"
-              :class="['toggle', blackHoleBg ? 'toggle--on' : '']"
-              @click="blackHoleBg = !blackHoleBg"
-            >
-              <span :class="['toggle-thumb', blackHoleBg ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <Transition name="nested-reveal">
-            <div v-if="blackHoleBg" class="nested-setting-row">
+            <div class="setting-row">
               <div class="row-left">
-                <Orbit :size="15" class="row-icon row-icon--nested" />
+                <Atom :size="16" class="row-icon" />
                 <div class="row-text">
-                  <p class="row-title" v-text="t('settings.blackHoleDetail')" />
-                  <p class="row-desc" v-text="t('settings.blackHoleDetailDesc')" />
+                  <p class="row-title" v-text="t('settings.quantum')" />
+                  <p class="row-desc" v-text="t('settings.quantumDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="quantumResistant"
+                :aria-label="t('settings.quantum')"
+                :class="['toggle', quantumResistant ? 'toggle--on' : '']"
+                @click="quantumResistant = !quantumResistant"
+              >
+                <span :class="['toggle-thumb', quantumResistant ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Lock :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.strictRoute')" />
+                  <p class="row-desc" v-text="t('settings.strictRouteDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="strictRoute"
+                :aria-label="t('settings.strictRoute')"
+                :class="['toggle', strictRoute ? 'toggle--on' : '']"
+                @click="strictRoute = !strictRoute"
+              >
+                <span :class="['toggle-thumb', strictRoute ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Wifi :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.dnsLeakGuard')" />
+                  <p class="row-desc" v-text="t('settings.dnsLeakGuardDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="dnsLeakGuard"
+                :aria-label="t('settings.dnsLeakGuard')"
+                :class="['toggle', dnsLeakGuard ? 'toggle--on' : '']"
+                @click="dnsLeakGuard = !dnsLeakGuard"
+              >
+                <span :class="['toggle-thumb', dnsLeakGuard ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <RefreshCw :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.tunnelOwnTraffic')" />
+                  <p class="row-desc" v-text="t('settings.tunnelOwnTrafficDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="tunnelOwnTraffic"
+                :aria-label="t('settings.tunnelOwnTraffic')"
+                :class="['toggle', tunnelOwnTraffic ? 'toggle--on' : '']"
+                @click="tunnelOwnTraffic = !tunnelOwnTraffic"
+              >
+                <span :class="['toggle-thumb', tunnelOwnTraffic ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <ShieldAlert :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.insecureTls')" />
+                  <p class="row-desc" v-text="t('settings.insecureTlsDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="allowInsecureTls"
+                :aria-label="t('settings.insecureTls')"
+                :class="['toggle', allowInsecureTls ? 'toggle--on' : '']"
+                @click="allowInsecureTls = !allowInsecureTls"
+              >
+                <span :class="['toggle-thumb', allowInsecureTls ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Globe2 :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.bootstrapDns')" />
+                  <p class="row-desc" v-text="t('settings.bootstrapDnsDesc')" />
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px">
+                <button
+                  v-for="opt in bootstrapOptions"
+                  :key="opt"
+                  type="button"
+                  :class="[
+                    'seg-btn',
+                    vpnStore.settings.bootstrap_dns === opt ? 'seg-btn--active' : '',
+                  ]"
+                  @click="setBootstrapDns(opt)"
+                  v-text="opt"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="activeTab === 'connection'" class="card">
+            <div class="setting-row">
+              <div class="row-left">
+                <Wand2 :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.smartConnect')" />
+                  <p class="row-desc" v-text="t('settings.smartConnectDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="vpnStore.settings.smart_connect"
+                :aria-label="t('settings.smartConnect')"
+                :class="['toggle', vpnStore.settings.smart_connect ? 'toggle--on' : '']"
+                @click="
+                  vpnStore.updateSettings({ smart_connect: !vpnStore.settings.smart_connect })
+                "
+              >
+                <span
+                  :class="[
+                    'toggle-thumb',
+                    vpnStore.settings.smart_connect ? 'toggle-thumb--on' : '',
+                  ]"
+                />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Network :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.failover')" />
+                  <p class="row-desc" v-text="t('settings.failoverDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="vpnStore.settings.failover_enabled"
+                :aria-label="t('settings.failover')"
+                :class="['toggle', vpnStore.settings.failover_enabled ? 'toggle--on' : '']"
+                @click="
+                  vpnStore.updateSettings({ failover_enabled: !vpnStore.settings.failover_enabled })
+                "
+              >
+                <span
+                  :class="[
+                    'toggle-thumb',
+                    vpnStore.settings.failover_enabled ? 'toggle-thumb--on' : '',
+                  ]"
+                />
+              </button>
+            </div>
+
+            <Transition name="nested-reveal">
+              <div v-if="vpnStore.settings.failover_enabled" class="chain-box">
+                <div class="chain-head">
+                  <button
+                    type="button"
+                    class="chain-cal"
+                    :disabled="vpnStore.calibrating"
+                    @click="vpnStore.calibrateFailover()"
+                  >
+                    <Wand2 :size="13" />
+                    <span
+                      v-text="
+                        vpnStore.calibrating
+                          ? t('settings.failoverCalibrating')
+                          : t('settings.failoverCalibrate')
+                      "
+                    />
+                  </button>
+                  <label class="chain-retry">
+                    <span v-text="t('settings.failoverRetries')" />
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      :value="vpnStore.settings.failover_retries"
+                      @change="onRetries"
+                    />
+                  </label>
+                </div>
+
+                <p
+                  v-if="!vpnStore.failoverServers.length"
+                  class="chain-empty"
+                  v-text="t('settings.failoverEmpty')"
+                />
+
+                <div v-for="(srv, idx) in vpnStore.failoverServers" :key="srv.id" class="chain-row">
+                  <span
+                    class="chain-idx"
+                    v-text="
+                      idx === 0
+                        ? t('settings.failoverPrimary')
+                        : t('settings.failoverBackup') + ' ' + idx
+                    "
+                  />
+                  <span class="chain-name" v-text="srv.name" />
+                  <button
+                    type="button"
+                    class="chain-btn"
+                    @click="vpnStore.moveFailoverEntry(srv.id, -1)"
+                  >
+                    &#8593;
+                  </button>
+                  <button
+                    type="button"
+                    class="chain-btn"
+                    @click="vpnStore.moveFailoverEntry(srv.id, 1)"
+                  >
+                    &#8595;
+                  </button>
+                  <button
+                    type="button"
+                    class="chain-btn chain-btn--kill"
+                    @click="vpnStore.removeFailoverEntry(srv.id)"
+                  >
+                    &#215;
+                  </button>
+                </div>
+              </div>
+            </Transition>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Power :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.startOnBoot')" />
+                  <p class="row-desc" v-text="t('settings.startOnBootDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="vpnStore.settings.start_on_boot"
+                :aria-label="t('settings.startOnBoot')"
+                :disabled="startOnBootPending"
+                :class="['toggle', vpnStore.settings.start_on_boot ? 'toggle--on' : '']"
+                @click="toggleStartOnBoot"
+              >
+                <span
+                  :class="[
+                    'toggle-thumb',
+                    vpnStore.settings.start_on_boot ? 'toggle-thumb--on' : '',
+                  ]"
+                />
+              </button>
+            </div>
+
+            <Transition name="nested-reveal">
+              <div v-if="vpnStore.settings.start_on_boot" class="nested-setting-row">
+                <div class="row-left">
+                  <Rocket :size="15" class="row-icon row-icon--nested" />
+                  <div class="row-text">
+                    <p class="row-title" v-text="t('settings.autoConnect')" />
+                    <p class="row-desc" v-text="t('settings.autoConnectDesc')" />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="autoConnect"
+                  :aria-label="t('settings.autoConnect')"
+                  :class="['toggle', autoConnect ? 'toggle--on' : '']"
+                  @click="autoConnect = !autoConnect"
+                >
+                  <span :class="['toggle-thumb', autoConnect ? 'toggle-thumb--on' : '']" />
+                </button>
+              </div>
+            </Transition>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Wifi :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.lanAccess')" />
+                  <p class="row-desc" v-text="t('settings.lanAccessDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="lanAccess"
+                :aria-label="t('settings.lanAccess')"
+                :class="['toggle', lanAccess ? 'toggle--on' : '']"
+                @click="lanAccess = !lanAccess"
+              >
+                <span :class="['toggle-thumb', lanAccess ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Timer :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.autoPing')" />
+                  <p class="row-desc" v-text="t('settings.autoPingDesc')" />
+                </div>
+              </div>
+              <select
+                v-model.number="autoPingMinutes"
+                class="row-select"
+                :aria-label="t('settings.autoPing')"
+              >
+                <option :value="0" v-text="t('settings.autoPingOff')" />
+                <option
+                  v-for="span in AUTO_PING_CHOICES"
+                  :key="span"
+                  :value="span"
+                  v-text="t('settings.autoPingEvery', { count: span })"
+                />
+              </select>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Timer :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('autoOff.title')" />
+                  <p
+                    class="row-desc"
+                    v-text="vpnStore.autoOffArmed ? autoOffStatus : t('autoOff.subtitle')"
+                  />
+                </div>
+              </div>
+              <div class="autooff-modes">
+                <button
+                  v-for="mode in AUTO_OFF_MODES"
+                  :key="mode"
+                  type="button"
+                  class="autooff-mode-btn"
+                  :class="{ 'autooff-mode-btn--active': autoOffMode === mode }"
+                  @click="chooseAutoOffMode(mode)"
+                  v-text="t(`autoOff.${mode === 'off' ? 'none' : mode}`)"
+                />
+              </div>
+            </div>
+
+            <Transition name="nested-reveal" mode="out-in">
+              <div v-if="autoOffMode === 'timer'" key="autooff-timer" class="autooff-panel">
+                <div class="autooff-presets">
+                  <button
+                    v-for="span in AUTO_OFF_CHOICES"
+                    :key="span"
+                    type="button"
+                    class="autooff-preset"
+                    :class="{
+                      'autooff-preset--active':
+                        autoOffMinutes === span && vpnStore.autoOff.mode === 'timer',
+                    }"
+                    @click="armAutoOffMinutes(span)"
+                    v-text="autoOffPresetLabel(span)"
+                  />
+                </div>
+                <div class="autooff-line">
+                  <input
+                    v-model.number="autoOffMinutes"
+                    class="autooff-input mono"
+                    type="number"
+                    min="1"
+                    max="10080"
+                    :placeholder="t('autoOff.custom')"
+                  />
+                  <button
+                    type="button"
+                    class="autooff-apply"
+                    @click="armCustomAutoOff"
+                    v-text="t('autoOff.apply')"
+                  />
+                </div>
+              </div>
+
+              <div
+                v-else-if="autoOffMode === 'process'"
+                key="autooff-process"
+                class="autooff-panel"
+              >
+                <div class="autooff-line">
+                  <select
+                    v-model="autoOffProcess"
+                    class="row-select autooff-app-select"
+                    :disabled="loadingProcs"
+                  >
+                    <option
+                      value=""
+                      disabled
+                      v-text="loadingProcs ? t('autoOff.loadingApps') : t('autoOff.chooseApp')"
+                    />
+                    <option
+                      v-if="autoOffProcess && !processes.some((app) => app.path === autoOffProcess)"
+                      :value="autoOffProcess"
+                      v-text="appDisplayName(autoOffProcess)"
+                    />
+                    <option
+                      v-for="app in processes"
+                      :key="app.path"
+                      :value="app.path"
+                      v-text="app.name || appDisplayName(app.path)"
+                    />
+                  </select>
+                  <button
+                    type="button"
+                    class="autooff-refresh"
+                    :disabled="loadingProcs"
+                    :title="t('autoOff.refreshApps')"
+                    @click="loadProcesses"
+                  >
+                    <Loader2 v-if="loadingProcs" :size="13" class="spin" />
+                    <RefreshCw v-else :size="13" />
+                  </button>
+                  <button
+                    type="button"
+                    class="autooff-apply"
+                    :disabled="!autoOffProcess || loadingProcs"
+                    @click="armProcessAutoOff"
+                    v-text="t('autoOff.apply')"
+                  />
+                </div>
+              </div>
+            </Transition>
+
+            <Transition name="nested-reveal">
+              <div v-if="vpnStore.autoOffArmed" class="autooff-active">
+                <span class="autooff-active-dot" aria-hidden="true" />
+                <span class="autooff-active-text" v-text="autoOffStatus" />
+                <button
+                  type="button"
+                  class="autooff-cancel"
+                  @click="disableAutoOff"
+                  v-text="t('autoOff.disarm')"
+                />
+              </div>
+            </Transition>
+
+            <div
+              ref="multihopRowRef"
+              class="setting-row"
+              :class="{ 'setting-row--flash': flashTarget === 'multihop' }"
+            >
+              <div class="row-left">
+                <Shuffle :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.multihop')" />
+                  <p class="row-desc" v-text="t('settings.multihopDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="multihopEnabled"
+                :aria-label="t('settings.multihop')"
+                :class="['toggle', multihopEnabled ? 'toggle--on' : '']"
+                @click="multihopEnabled = !multihopEnabled"
+              >
+                <span :class="['toggle-thumb', multihopEnabled ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Keyboard :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.hotkeys')" />
+                  <p class="row-desc" v-text="t('settings.hotkeysDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="hotkeysEnabled"
+                :aria-label="t('settings.hotkeys')"
+                :class="['toggle', hotkeysEnabled ? 'toggle--on' : '']"
+                @click="hotkeysEnabled = !hotkeysEnabled"
+              >
+                <span :class="['toggle-thumb', hotkeysEnabled ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <Transition name="nested-reveal">
+              <div v-if="hotkeysEnabled" class="nested-setting-row">
+                <div class="row-left">
+                  <Zap :size="15" class="row-icon row-icon--nested" />
+                  <div class="row-text">
+                    <p class="row-title" v-text="t('settings.hotkeyToggle')" />
+                    <p class="row-desc" v-text="t('settings.hotkeyToggleDesc')" />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="hotkey-btn"
+                  :class="{ 'hotkey-btn--recording': recordingHotkey }"
+                  @click="startHotkeyCapture"
+                  @keydown="captureHotkey"
+                  @blur="stopHotkeyCapture"
+                >
+                  <span
+                    class="mono"
+                    v-text="recordingHotkey ? t('settings.hotkeyPress') : hotkeyLabel"
+                  />
+                </button>
+              </div>
+            </Transition>
+          </div>
+
+          <div v-else-if="activeTab === 'privacy'" class="card">
+            <div class="setting-row">
+              <div class="row-left">
+                <Globe2 :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.blockTrackers')" />
+                  <p class="row-desc" v-text="t('settings.blockTrackersDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="blockTrackers"
+                :aria-label="t('settings.blockTrackers')"
+                :class="['toggle', blockTrackers ? 'toggle--on' : '']"
+                @click="blockTrackers = !blockTrackers"
+              >
+                <span :class="['toggle-thumb', blockTrackers ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <MapPin :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.onlineGeo')" />
+                  <p class="row-desc" v-text="t('settings.onlineGeoDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="onlineGeo"
+                :aria-label="t('settings.onlineGeo')"
+                :class="['toggle', onlineGeo ? 'toggle--on' : '']"
+                @click="onlineGeo = !onlineGeo"
+              >
+                <span :class="['toggle-thumb', onlineGeo ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Bell :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.notifications')" />
+                  <p class="row-desc" v-text="t('settings.notificationsDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="notificationsEnabled"
+                :aria-label="t('settings.notifications')"
+                :class="['toggle', notificationsEnabled ? 'toggle--on' : '']"
+                @click="notificationsEnabled = !notificationsEnabled"
+              >
+                <span :class="['toggle-thumb', notificationsEnabled ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div
+              ref="telemetryRowRef"
+              class="setting-row"
+              :class="{ 'setting-row--danger': vpnStore.settings.telemetry }"
+            >
+              <div class="row-left">
+                <Activity :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title">
+                    <span v-text="t('settings.telemetry')" />
+                    <span
+                      v-if="vpnStore.settings.telemetry"
+                      class="tl-badge tl-badge--on"
+                      v-text="t('settings.telemetryBadgeOn')"
+                    />
+                    <span
+                      v-else
+                      class="tl-badge"
+                      v-text="t('settings.telemetryBadgeOff')"
+                    />
+                  </p>
+                  <p class="row-desc" v-text="t('settings.telemetryDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="vpnStore.settings.telemetry"
+                :aria-label="t('settings.telemetry')"
+                :class="['toggle', vpnStore.settings.telemetry ? 'toggle--on' : '']"
+                @click="vpnStore.toggleTelemetry()"
+              >
+                <span
+                  :class="['toggle-thumb', vpnStore.settings.telemetry ? 'toggle-thumb--on' : '']"
+                />
+              </button>
+            </div>
+
+            <Transition name="nested-reveal">
+              <div v-if="telemetryDetailsOpen" class="nested-setting-row telemetry-details">
+                <ul class="tm-list">
+                  <li v-text="t('settings.tmYes1')" />
+                  <li v-text="t('settings.tmYes2')" />
+                  <li v-text="t('settings.tmYes3')" />
+                </ul>
+                <ul class="tm-list tm-list--never">
+                  <li v-for="item in TM_NEVER" :key="item" v-text="t(item)" />
+                </ul>
+                <pre class="tm-payload mono">{{ TELEMETRY_SAMPLE }}</pre>
+                <p class="row-desc tm-note" v-text="t('settings.tmNote')" />
+              </div>
+            </Transition>
+
+            <button type="button" class="telemetry-details-btn" @click="telemetryDetailsOpen = !telemetryDetailsOpen">
+              <component :is="telemetryDetailsOpen ? ArrowUp : ArrowDown" :size="13" />
+              <span v-text="telemetryDetailsOpen ? t('settings.hideTmDetails') : t('settings.showTmDetails')" />
+            </button>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Cpu :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.deviceId')" />
+                  <p class="row-desc" v-text="t('settings.deviceIdDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="hwidEnabled"
+                :aria-label="t('settings.deviceId')"
+                :class="['toggle', hwidEnabled ? 'toggle--on' : '']"
+                @click="hwidEnabled = !hwidEnabled"
+              >
+                <span :class="['toggle-thumb', hwidEnabled ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <div v-if="hwidEnabled" class="hwid-panel">
+              <code class="hwid-value" :title="hwidValue">{{ hwidShort }}</code>
+              <div class="hwid-actions">
+                <button type="button" class="hwid-btn" :disabled="!hwidValue" @click="copyHwid">
+                  <Check v-if="hwidCopied" :size="14" />
+                  <span
+                    v-text="hwidCopied ? t('settings.deviceIdCopied') : t('settings.deviceIdCopy')"
+                  />
+                </button>
+                <button type="button" class="hwid-btn" @click="resetHwid">
+                  <RotateCcw :size="14" />
+                  <span v-text="t('settings.deviceIdReset')" />
+                </button>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Gamepad2 :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.discordRpc')" />
+                  <p class="row-desc" v-text="t('settings.discordRpcDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="discordRpc"
+                :aria-label="t('settings.discordRpc')"
+                :class="['toggle', discordRpc ? 'toggle--on' : '']"
+                @click="discordRpc = !discordRpc"
+              >
+                <span :class="['toggle-thumb', discordRpc ? 'toggle-thumb--on' : '']" />
+              </button>
+            </div>
+
+            <Transition name="rpc-fold">
+              <div v-if="discordRpc" class="rpc-sub">
+                <div class="setting-row">
+                  <div class="row-left">
+                    <MapPin :size="16" class="row-icon" />
+                    <div class="row-text">
+                      <p class="row-title" v-text="t('settings.discordRpcServer')" />
+                      <p class="row-desc" v-text="t('settings.discordRpcServerDesc')" />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="discordRpcShowServer"
+                    :aria-label="t('settings.discordRpcServer')"
+                    :class="['toggle', discordRpcShowServer ? 'toggle--on' : '']"
+                    @click="discordRpcShowServer = !discordRpcShowServer"
+                  >
+                    <span
+                      :class="['toggle-thumb', discordRpcShowServer ? 'toggle-thumb--on' : '']"
+                    />
+                  </button>
+                </div>
+
+                <div class="setting-row">
+                  <div class="row-left">
+                    <Layers :size="16" class="row-icon" />
+                    <div class="row-text">
+                      <p class="row-title" v-text="t('settings.discordRpcSub')" />
+                      <p class="row-desc" v-text="t('settings.discordRpcSubDesc')" />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="discordRpcShowSub"
+                    :aria-label="t('settings.discordRpcSub')"
+                    :class="['toggle', discordRpcShowSub ? 'toggle--on' : '']"
+                    @click="discordRpcShowSub = !discordRpcShowSub"
+                  >
+                    <span :class="['toggle-thumb', discordRpcShowSub ? 'toggle-thumb--on' : '']" />
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
+          <div v-else-if="activeTab === 'appearance'" class="card">
+            
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Sparkles :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.uiStyle')" />
+                  <p class="row-desc" v-text="t('settings.uiStyleDesc')" />
+                </div>
+              </div>
+              <div class="pill-group">
+                <button
+                  type="button"
+                  :class="['pill-btn', { 'pill-btn--active': vpnStore.settings.ui_style === 'wawity' }]"
+                  @click="setUiStyle('wawity')"
+                  v-text="t('settings.uiStyleWawity')"
+                ></button>
+                <button
+                  type="button"
+                  :class="['pill-btn', { 'pill-btn--active': vpnStore.settings.ui_style === 'material' }]"
+                  @click="setUiStyle('material')"
+                  v-text="t('settings.uiStyleMaterial')"
+                ></button>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Zap :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.motionLevel')" />
+                  <p class="row-desc" v-text="t('settings.motionLevelDesc')" />
+                </div>
+              </div>
+              <div class="pill-group">
+                <button
+                  type="button"
+                  :class="['pill-btn', { 'pill-btn--active': !motionFancy }]"
+                  @click="setMotionMode('simple')"
+                  v-text="t('settings.motionSimple')"
+                ></button>
+                <button
+                  type="button"
+                  :class="['pill-btn', { 'pill-btn--active': motionFancy }]"
+                  @click="setMotionMode('fancy')"
+                  v-text="t('settings.motionFancy')"
+                ></button>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <MapIcon :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.serverView')" />
+                  <p class="row-desc" v-text="t('settings.serverViewDesc')" />
                 </div>
               </div>
               <div class="pill-switch">
                 <button
                   type="button"
                   class="pill-btn"
-                  :class="{ 'pill-btn--active': vpnStore.settings.black_hole_detail !== 'detailed' && vpnStore.settings.black_hole_detail !== 'new' }"
-                  @click="setBlackHoleDetail('simple')"
-                  v-text="t('settings.blackHoleSimple')"
+                  :class="{ 'pill-btn--active': vpnStore.settings.server_view !== 'globe' }"
+                  @click="setServerView('list')"
+                  v-text="t('settings.serverViewList')"
                 />
                 <button
                   type="button"
                   class="pill-btn"
-                  :class="{ 'pill-btn--active': vpnStore.settings.black_hole_detail === 'detailed' }"
-                  @click="setBlackHoleDetail('detailed')"
-                  v-text="t('settings.blackHoleDetailed')"
-                />
-                <button
-                  type="button"
-                  class="pill-btn"
-                  :class="{ 'pill-btn--active': vpnStore.settings.black_hole_detail === 'new' }"
-                  @click="setBlackHoleDetail('new')"
-                  v-text="t('settings.blackHoleNew')"
+                  :class="{ 'pill-btn--active': vpnStore.settings.server_view === 'globe' }"
+                  @click="setServerView('globe')"
+                  v-text="t('settings.serverViewGlobe')"
                 />
               </div>
             </div>
-          </Transition>
 
-          <div class="setting-row">
-            <div class="row-left">
-              <Layers :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.liquidGlass')" />
-                <p class="row-desc" v-text="t('settings.liquidGlassDesc')" />
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="liquidGlass"
-              :aria-label="t('settings.liquidGlass')"
-              :class="['toggle', liquidGlass ? 'toggle--on' : '']"
-              @click="liquidGlass = !liquidGlass"
-            >
-              <span :class="['toggle-thumb', liquidGlass ? 'toggle-thumb--on' : '']" />
-            </button>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <MapIcon :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.serverView')" />
-                <p class="row-desc" v-text="t('settings.serverViewDesc')" />
-              </div>
-            </div>
-            <div class="pill-switch">
-              <button
-                type="button"
-                class="pill-btn"
-                :class="{ 'pill-btn--active': vpnStore.settings.server_view !== 'globe' }"
-                @click="setServerView('list')"
-                v-text="t('settings.serverViewList')"
-              />
-              <button
-                type="button"
-                class="pill-btn"
-                :class="{ 'pill-btn--active': vpnStore.settings.server_view === 'globe' }"
-                @click="setServerView('globe')"
-                v-text="t('settings.serverViewGlobe')"
-              />
-            </div>
-          </div>
-
-          <div class="setting-row">
-            <div class="row-left">
-              <Languages :size="16" class="row-icon" />
-              <div class="row-text">
-                <p class="row-title" v-text="t('settings.language')" />
-                <p class="row-desc" v-text="t('settings.languageDesc')" />
-              </div>
-            </div>
-            <div class="pill-switch">
-              <button
-                type="button"
-                class="pill-btn"
-                :class="{ 'pill-btn--active': vpnStore.settings.language === 'en' }"
-                @click="changeLanguage('en')"
-              >
-                English
-              </button>
-              <button
-                type="button"
-                class="pill-btn"
-                :class="{ 'pill-btn--active': vpnStore.settings.language === 'ru' }"
-                @click="changeLanguage('ru')"
-              >
-                Русский
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="activeTab === 'split'" class="card split-card">
-          <p class="split-desc" v-text="t('settings.splitDesc')" />
-
-          <div class="split-mode-block">
-            <div class="mode-pill">
-              <button
-                v-for="option in SPLIT_MODES"
-                :key="option"
-                type="button"
-                class="mode-pill-btn"
-                :class="{ 'mode-pill-btn--active': vpnStore.settings.split_mode === option }"
-                :title="t(SPLIT_MODE_LABELS[option])"
-                @click="chooseSplitMode(option)"
-              >
-                <component :is="SPLIT_MODE_ICONS[option]" :size="15" />
-              </button>
-            </div>
-            <div class="mode-explain">
-              <span class="mode-explain-name" v-text="t(SPLIT_MODE_LABELS[vpnStore.settings.split_mode])" />
-              <span class="mode-explain-desc" v-text="t(SPLIT_MODE_HINTS[vpnStore.settings.split_mode])" />
-            </div>
-          </div>
-
-          <div v-if="vpnStore.splitDirty" class="apply-bar">
-            <span class="apply-text" v-text="t('settings.splitPending')" />
-            <button
-              type="button"
-              class="apply-btn"
-              :disabled="vpnStore.splitApplying"
-              @click="vpnStore.applySplitRules()"
-            >
-              <Loader2 v-if="vpnStore.splitApplying" :size="13" class="spin" />
-              <span v-text="vpnStore.splitApplying ? t('settings.splitApplying') : t('settings.splitApply')" />
-            </button>
-          </div>
-
-          <div v-if="vpnStore.settings.split_mode === 'smart'" class="smart-box">
-            <div class="smart-head">
-              <p class="smart-desc" v-text="t('settings.smartDesc')" />
-              <button
-                type="button"
-                class="smart-btn"
-                :disabled="vpnStore.detectingBlocks"
-                @click="runDetect"
-              >
-                <Loader2 v-if="vpnStore.detectingBlocks" :size="13" class="spin" />
-                <Radar v-else :size="13" />
-                <span v-text="vpnStore.detectingBlocks ? t('settings.smartScanning') : t('settings.smartScan')" />
-              </button>
-            </div>
-            <ul v-if="blockReports.length > 0" class="rule-list">
-              <li v-for="report in blockReports" :key="report.domain" class="rule-item">
-                <span
-                  class="verdict-dot"
-                  :class="report.blocked ? 'verdict-dot--blocked' : 'verdict-dot--ok'"
-                />
-                <span class="rule-value" v-text="report.label" />
-                <span class="verdict-tag" v-text="t('settings.verdict_' + report.verdict)" />
-              </li>
-            </ul>
-          </div>
-
-          <template v-if="splitOn">
-            <div class="split-templates">
-              <span class="split-mode-title" v-text="t('settings.splitTemplates')" />
-              <div v-for="tpl in SPLIT_TEMPLATES" :key="tpl.id" class="tpl-row-wrap">
-                <div class="tpl-row" :class="{ 'tpl-row--on': isTemplateOn(tpl.id) }">
-                  <button
-                    type="button"
-                    class="tpl-check"
-                    :class="{ 'tpl-check--on': isTemplateOn(tpl.id) }"
-                    @click="toggleTemplate(tpl)"
-                  >
-                    <Check v-if="isTemplateOn(tpl.id)" :size="12" />
-                  </button>
-                  <span class="tpl-label" @click="toggleTemplate(tpl)" v-text="t(tpl.labelKey)" />
-                  <button
-                    type="button"
-                    class="tpl-help"
-                    :class="{ 'tpl-help--on': openTemplate === tpl.id }"
-                    :title="t('settings.tplWhatsInside')"
-                    @click="toggleTemplateHelp(tpl.id)"
-                  >
-                    <HelpCircle :size="13" />
-                  </button>
-                </div>
-                <div v-if="openTemplate === tpl.id" class="tpl-detail">
-                  <p class="tpl-detail-text" v-text="t(tpl.detailKey)" />
-                  <p class="tpl-detail-count" v-text="t('settings.tplEntries', { count: templateItems(tpl).length })" />
-                  <div class="tpl-chips">
-                    <span v-for="item in templateItems(tpl)" :key="item" class="tpl-chip mono" v-text="item" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          <div class="split-tabs">
-            <button
-              type="button"
-              class="split-tab"
-              :class="{ 'split-tab--active': splitTab === 'file' }"
-              @click="splitTab = 'file'"
-            >
-              <FolderOpen :size="13" />
-              <span v-text="t('settings.fromFile')" />
-            </button>
-            <button
-              type="button"
-              class="split-tab"
-              :class="{ 'split-tab--active': splitTab === 'process' }"
-              @click="switchToProcess"
-            >
-              <AppWindow :size="13" />
-              <span v-text="t('settings.runningApps')" />
-            </button>
-            <button
-              type="button"
-              class="split-tab"
-              :class="{ 'split-tab--active': splitTab === 'games' }"
-              @click="splitTab = 'games'"
-            >
-              <Gamepad2 :size="13" />
-              <span v-text="t('settings.detectGames')" />
-            </button>
-            <button
-              type="button"
-              class="split-tab"
-              :class="{ 'split-tab--active': splitTab === 'domains' }"
-              @click="splitTab = 'domains'"
-            >
-              <Globe :size="13" />
-              <span v-text="t('settings.tabDomains')" />
-            </button>
-            <button
-              type="button"
-              class="split-tab"
-              :class="{ 'split-tab--active': splitTab === 'ips' }"
-              @click="splitTab = 'ips'"
-            >
-              <Network :size="13" />
-              <span v-text="t('settings.tabIps')" />
-            </button>
-          </div>
-
-          <div v-if="splitTab === 'file'" class="split-panel">
-            <div class="add-app-row">
-              <input
-                v-model="newApp"
-                type="text"
-                :placeholder="t('settings.appPathPlaceholder')"
-                class="app-input"
-                @keydown.enter="addAppManual"
-              />
-              <button type="button" class="app-browse-btn" :title="t('settings.browseTitle')" @click="browseFile">
-                <FolderOpen :size="14" />
-              </button>
-              <button type="button" class="app-add-btn" :disabled="!newApp.trim()" @click="addAppManual" v-text="t('settings.addApp')" />
-            </div>
-          </div>
-
-          <div v-else-if="splitTab === 'process'" class="split-panel">
-            <div class="add-app-row">
-              <input
-                v-model="newProcess"
-                type="text"
-                :placeholder="t('settings.processPlaceholder')"
-                class="app-input"
-                @keydown.enter="submitProcess"
-              />
-              <button
-                type="button"
-                class="app-add-btn"
-                :disabled="!newProcess.trim()"
-                @click="submitProcess"
-                v-text="t('settings.addProcess')"
-              />
-            </div>
-            <ul v-if="vpnStore.settings.split_processes.length > 0" class="rule-list">
-              <li v-for="name in vpnStore.settings.split_processes" :key="name" class="rule-item">
-                <Cpu :size="13" class="rule-icon" />
-                <span class="rule-value mono" v-text="name" />
-                <button
-                  type="button"
-                  class="bypass-remove"
-                  :title="t('settings.removeTitle')"
-                  @click="vpnStore.removeSplitProcess(name)"
-                >
-                  <X :size="13" />
-                </button>
-              </li>
-            </ul>
-            <div class="process-search">
-              <Search :size="13" class="proc-search-icon" />
-              <input
-                v-model="procQuery"
-                type="text"
-                :placeholder="t('settings.searchRunningApps')"
-                class="proc-search-input"
-              />
-              <button type="button" class="proc-refresh-btn" :disabled="loadingProcs" :title="t('settings.refreshTitle')" @click="loadProcesses">
-                <Loader2 v-if="loadingProcs" :size="13" class="spin" />
-                <RefreshCw v-else :size="13" />
-              </button>
-            </div>
-
-            <div class="proc-list-wrap">
-              <p v-if="loadingProcs && filteredProcs.length === 0" class="proc-hint" v-text="t('settings.loadingProcesses')" />
-              <p v-else-if="filteredProcs.length === 0" class="proc-hint" v-text="t('settings.noProcessesFound')" />
-              <ul v-else class="proc-list">
-                <li
-                  v-for="proc in filteredProcs"
-                  :key="proc.path"
-                  class="proc-row"
-                  :class="{ 'proc-row--added': vpnStore.settings.bypass_apps.includes(proc.path) }"
-                  @click="toggleProcess(proc.path)"
-                >
-                  <span class="proc-ico">
-                    <img v-if="appIcons[proc.path]" :src="appIcons[proc.path]" alt="" />
-                    <span v-else class="proc-ico-letter" v-text="proc.name.slice(0, 1).toUpperCase()" />
-                  </span>
-                  <div class="proc-info">
-                    <span class="proc-name" v-text="proc.name" />
-                    <span class="proc-path mono" v-text="proc.path" />
-                  </div>
-                  <div class="proc-check" :class="{ 'proc-check--on': vpnStore.settings.bypass_apps.includes(proc.path) }">
-                    <Check v-if="vpnStore.settings.bypass_apps.includes(proc.path)" :size="12" />
-                    <Plus v-else :size="12" />
-                  </div>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div v-else-if="splitTab === 'games'" class="split-panel">
-            <div class="games-scan-row">
-              <p class="games-scan-desc" v-text="t('settings.gamesScanDesc')" />
-              <button type="button" class="games-scan-btn" :disabled="scanningGames" @click="scanGames">
-                <Loader2 v-if="scanningGames" :size="14" class="spin" />
-                <Gamepad2 v-else :size="14" />
-                <span v-text="scanningGames ? t('settings.scanning') : t('settings.scanForGames')" />
-              </button>
-            </div>
-
-            <div v-if="detectedGames.length > 0" class="games-results">
-              <div class="process-search">
-                <Search :size="13" class="proc-search-icon" />
-                <input
-                  v-model="gameQuery"
-                  type="text"
-                  :placeholder="t('settings.gamesSearch')"
-                  class="proc-input"
-                />
-              </div>
-              <div class="games-bulk-row">
-                <button type="button" class="games-bulk-btn" @click="selectAllGames" v-text="t('settings.gamesSelectAll')" />
-                <button type="button" class="games-bulk-btn" @click="selectedGameKeys.clear()" v-text="t('settings.gamesClearSel')" />
-              </div>
-              <p v-if="filteredGames.length === 0" class="split-empty" v-text="t('settings.gamesNothingFound')" />
-              <ul v-else class="games-list">
-                <li
-                  v-for="game in filteredGames"
-                  :key="game.key"
-                  class="game-row"
-                  :class="{ 'game-row--selected': selectedGameKeys.has(game.key) }"
-                  @click="toggleGameSelection(game.key)"
-                >
-                  <div class="game-check" :class="{ 'game-check--on': selectedGameKeys.has(game.key) }">
-                    <Check v-if="selectedGameKeys.has(game.key)" :size="12" />
-                  </div>
-                  <span class="proc-ico">
-                    <img v-if="appIcons[game.exePaths[0]]" :src="appIcons[game.exePaths[0]]" alt="" />
-                    <Gamepad2 v-else :size="13" />
-                  </span>
-                  <div class="game-info">
-                    <span class="game-name" v-text="game.displayName" />
-                    <span class="game-count mono">
-                      <span class="game-launcher" v-text="game.launcher" />
-                      {{ t('settings.executables', { count: game.exePaths.length }) }}
-                    </span>
-                  </div>
-                  <span v-if="game.recommended" class="game-badge" v-text="t('settings.gamesRecommended')" />
-                </li>
-              </ul>
-              <button
-                type="button"
-                class="games-add-btn"
-                :disabled="selectedGameKeys.size === 0"
-                @click="addSelectedGames"
-                v-text="t('settings.addSelectedToBypass')"
-              />
-            </div>
-          </div>
-
-          <div v-else-if="splitTab === 'domains'" class="split-panel">
-            <div class="add-app-row">
-              <input
-                v-model="newDomain"
-                type="text"
-                :placeholder="t('settings.domainPlaceholder')"
-                class="app-input"
-                @keydown.enter="submitDomain"
-              />
-              <button type="button" class="app-add-btn" :disabled="!newDomain.trim()" @click="submitDomain" v-text="t('settings.addDomain')" />
-            </div>
-            <p v-if="vpnStore.settings.split_domains.length === 0" class="split-empty" v-text="t('settings.noDomains')" />
-            <ul v-else class="rule-list">
-              <li v-for="domain in vpnStore.settings.split_domains" :key="domain" class="rule-item">
-                <Globe :size="13" class="rule-icon" />
-                <span class="rule-value mono" v-text="domain" />
-                <button type="button" class="bypass-remove" :title="t('settings.removeTitle')" @click="vpnStore.removeSplitDomain(domain)">
-                  <X :size="13" />
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          <div v-else-if="splitTab === 'ips'" class="split-panel">
-            <div class="add-app-row">
-              <input
-                v-model="newIp"
-                type="text"
-                :placeholder="t('settings.ipPlaceholder')"
-                class="app-input"
-                @keydown.enter="submitIp"
-              />
-              <button type="button" class="app-add-btn" :disabled="!newIp.trim()" @click="submitIp" v-text="t('settings.addIp')" />
-            </div>
-            <p v-if="vpnStore.settings.split_ips.length === 0" class="split-empty" v-text="t('settings.noIps')" />
-            <ul v-else class="rule-list">
-              <li v-for="cidr in vpnStore.settings.split_ips" :key="cidr" class="rule-item">
-                <Network :size="13" class="rule-icon" />
-                <span class="rule-value mono" v-text="cidr" />
-                <button type="button" class="bypass-remove" :title="t('settings.removeTitle')" @click="vpnStore.removeSplitIp(cidr)">
-                  <X :size="13" />
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          <div v-if="vpnStore.settings.bypass_apps.length > 0" class="bypass-list-wrap">
-            <p class="bypass-list-title" v-text="t('settings.bypassedApps', { count: vpnStore.settings.bypass_apps.length })" />
-            <ul class="bypass-list">
-              <li v-for="app in vpnStore.settings.bypass_apps" :key="app" class="bypass-item">
-                <span class="bypass-icon-wrap">
-                  <img v-if="appIcons[app]" :src="appIcons[app]" alt="" />
-                  <AppWindow v-else :size="13" />
-                </span>
-                <span class="bypass-path mono" v-text="appDisplayName(app)" />
-                <span class="bypass-full-path mono" v-text="app" />
-                <button type="button" class="bypass-remove" :title="t('settings.removeTitle')" @click="removeApp(app)">
-                  <X :size="12" />
-                </button>
-              </li>
-            </ul>
-          </div>
-
-            <p v-else class="split-empty" v-text="t('settings.noAppsConfigured')" />
-          </template>
-        </div>
-
-        <div v-else class="about-stack">
-          <div class="card">
-            <div class="about-row">
-              <span class="about-label" v-text="t('settings.version')" />
-              <span class="about-value mono">0.1.0 (build 1)</span>
-            </div>
-            <div class="about-row">
-              <span class="about-label" v-text="t('settings.earthTextures')" />
-              <a
-                class="about-link"
-                href="https://www.solarsystemscope.com/textures/"
-                target="_blank"
-                rel="noopener"
-              >Solar System Scope</a>
-            </div>
-            <div class="about-row" style="align-items: flex-start; flex-direction: column; gap: 2px;">
-              <span class="about-label" style="font-size: 9px; opacity: 0.4;">Earth texture data licensed under CC BY 4.0. © Solar System Scope</span>
-            </div>
             <div class="setting-row">
               <div class="row-left">
-                <ShieldAlert :size="16" class="row-icon row-icon--danger" />
+                <Languages :size="16" class="row-icon" />
                 <div class="row-text">
-                  <p class="row-title" v-text="t('settings.emergencyRepair')" />
-                  <p class="row-desc" v-text="t('settings.emergencyRepairDesc')" />
+                  <p class="row-title" v-text="t('settings.language')" />
+                  <p class="row-desc" v-text="t('settings.languageDesc')" />
                 </div>
               </div>
-              <button type="button" class="repair-btn" :disabled="repairing" @click="runRepair">
-                <Loader2 v-if="repairing" :size="14" class="spin" />
-                <span v-else v-text="t('settings.repair')" />
-              </button>
+              <div class="pill-switch">
+                <button
+                  type="button"
+                  class="pill-btn"
+                  :class="{ 'pill-btn--active': vpnStore.settings.language === 'en' }"
+                  @click="changeLanguage('en')"
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  class="pill-btn"
+                  :class="{ 'pill-btn--active': vpnStore.settings.language === 'ru' }"
+                  @click="changeLanguage('ru')"
+                >
+                  Русский
+                </button>
+              </div>
             </div>
           </div>
 
-          <button type="button" class="reset-btn" @click="reset">
-            <RotateCcw :size="14" />
-            <span v-text="t('settings.resetDefaults')" />
-          </button>
-        </div>
+          <div v-else-if="activeTab === 'split'" class="card split-card">
+            <p class="split-desc" v-text="t('settings.splitDesc')" />
 
-      </div>
-    </Transition>
+            <!-- ---------- DNS center ---------- -->
+            <div class="dns-block">
+              <div class="block-head">
+                <span class="split-mode-title" v-text="t('settings.dnsCenterTitle')" />
+                <button
+                  type="button"
+                  class="tpl-help"
+                  :class="{ 'tpl-help--on': openDnsHelp }"
+                  :title="t('settings.dnsWhatsThis')"
+                  @click="openDnsHelp = !openDnsHelp"
+                >
+                  <HelpCircle :size="13" />
+                </button>
+              </div>
+
+              <div v-if="openDnsHelp" class="tpl-detail sg-help">
+                <p class="tpl-detail-text" v-html="t('settings.dnsHelpBody')" />
+              </div>
+
+              <div class="setting-row dns-row">
+                <div class="row-left">
+                  <Globe2 :size="16" class="row-icon" />
+                  <div class="row-text">
+                    <p class="row-title" v-text="t('settings.dnsRemote')" />
+                    <p class="row-desc" v-text="t('settings.dnsRemoteDesc')" />
+                  </div>
+                </div>
+                <div class="seg dns-seg">
+                  <button
+                    v-for="preset in DNS_PRESETS"
+                    :key="preset.key"
+                    type="button"
+                    class="seg-btn dns-pill-btn"
+                    :class="{ 'seg-btn--active': activeDnsKeyRef === preset.key }"
+                    @click="setDnsPreset(preset.key)"
+                    v-text="t(preset.labelKey)"
+                  />
+                </div>
+              </div>
+
+              <div v-if="showCustomDoh" class="setting-row dns-row">
+                <div class="row-left">
+                  <Link2 :size="16" class="row-icon" />
+                  <div class="row-text">
+                    <p class="row-title" v-text="t('settings.dnsCustom')" />
+                    <p class="row-desc" v-text="t('settings.dnsCustomDesc')" />
+                  </div>
+                </div>
+                <input
+                  :value="vpnStore.settings.dns_custom_doh"
+                  type="text"
+                  placeholder="https://…/dns-query"
+                  spellcheck="false"
+                  class="app-input dns-custom-input mono"
+                  :aria-label="t('settings.dnsCustom')"
+                  @change="commitCustomDoh(($event.target as HTMLInputElement).value)"
+                />
+              </div>
+
+              <div class="setting-row dns-row">
+                <div class="row-left">
+                  <ShieldAlert :size="16" class="row-icon" />
+                  <div class="row-text">
+                    <p class="row-title" v-text="t('settings.dnsBlockAds')" />
+                    <p class="row-desc" v-text="t('settings.dnsBlockAdsDesc')" />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="vpnStore.settings.dns_block_ads !== false"
+                  :class="['toggle', vpnStore.settings.dns_block_ads !== false ? 'toggle--on' : '']"
+                  @click="toggleDnsList('ads')"
+                >
+                  <span
+                    :class="['toggle-thumb', vpnStore.settings.dns_block_ads !== false ? 'toggle-thumb--on' : '']"
+                  />
+                </button>
+              </div>
+
+              <div class="setting-row dns-row">
+                <div class="row-left">
+                  <Crosshair :size="16" class="row-icon" />
+                  <div class="row-text">
+                    <p class="row-title" v-text="t('settings.dnsBlockTrackers')" />
+                    <p class="row-desc" v-text="t('settings.dnsBlockTrackersDesc')" />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="vpnStore.settings.dns_block_trackers !== false"
+                  :class="['toggle', vpnStore.settings.dns_block_trackers !== false ? 'toggle--on' : '']"
+                  @click="toggleDnsList('trackers')"
+                >
+                  <span
+                    :class="['toggle-thumb', vpnStore.settings.dns_block_trackers !== false ? 'toggle-thumb--on' : '']"
+                  />
+                </button>
+              </div>
+
+              <p v-if="vpnStore.splitDirty" class="dns-apply-hint" v-text="t('settings.dnsApplyHint')" />
+            </div>
+
+            <div class="split-mode-block">
+              <div class="mode-pill">
+                <button
+                  v-for="option in SPLIT_MODES"
+                  :key="option"
+                  type="button"
+                  class="mode-pill-btn"
+                  :class="{ 'mode-pill-btn--active': vpnStore.settings.split_mode === option }"
+                  :title="t(SPLIT_MODE_LABELS[option])"
+                  @click="chooseSplitMode(option)"
+                >
+                  <component :is="SPLIT_MODE_ICONS[option]" :size="15" />
+                </button>
+              </div>
+              <div class="mode-explain">
+                <span
+                  class="mode-explain-name"
+                  v-text="t(SPLIT_MODE_LABELS[vpnStore.settings.split_mode])"
+                />
+                <span
+                  class="mode-explain-desc"
+                  v-text="t(SPLIT_MODE_HINTS[vpnStore.settings.split_mode])"
+                />
+              </div>
+            </div>
+
+            <div v-if="vpnStore.splitDirty" class="apply-bar">
+              <span class="apply-text" v-text="t('settings.splitPending')" />
+              <button
+                type="button"
+                class="apply-btn"
+                :disabled="vpnStore.splitApplying"
+                @click="vpnStore.applySplitRules()"
+              >
+                <Loader2 v-if="vpnStore.splitApplying" :size="13" class="spin" />
+                <span
+                  v-text="
+                    vpnStore.splitApplying ? t('settings.splitApplying') : t('settings.splitApply')
+                  "
+                />
+              </button>
+            </div>
+
+            <div v-if="vpnStore.settings.split_mode === 'smart'" class="smart-box">
+              <div class="smart-head">
+                <p class="smart-desc" v-text="t('settings.smartDesc')" />
+                <button
+                  type="button"
+                  class="smart-btn"
+                  :disabled="vpnStore.detectingBlocks"
+                  @click="runDetect"
+                >
+                  <Loader2 v-if="vpnStore.detectingBlocks" :size="13" class="spin" />
+                  <Radar v-else :size="13" />
+                  <span
+                    v-text="
+                      vpnStore.detectingBlocks
+                        ? t('settings.smartScanning')
+                        : t('settings.smartScan')
+                    "
+                  />
+                </button>
+              </div>
+              <ul v-if="blockReports.length > 0" class="rule-list">
+                <li v-for="report in blockReports" :key="report.domain" class="rule-item">
+                  <span
+                    class="verdict-dot"
+                    :class="report.blocked ? 'verdict-dot--blocked' : 'verdict-dot--ok'"
+                  />
+                  <span class="rule-value" v-text="report.label" />
+                  <span class="verdict-tag" v-text="t('settings.verdict_' + report.verdict)" />
+                </li>
+              </ul>
+            </div>
+
+            <template v-if="splitOn">
+              <div class="split-templates">
+                <span class="split-mode-title" v-text="t('settings.splitTemplates')" />
+                <div v-for="tpl in SPLIT_TEMPLATES" :key="tpl.id" class="tpl-row-wrap">
+                  <div class="tpl-row" :class="{ 'tpl-row--on': isTemplateOn(tpl.id) }">
+                    <button
+                      type="button"
+                      class="tpl-check"
+                      :class="{ 'tpl-check--on': isTemplateOn(tpl.id) }"
+                      @click="toggleTemplate(tpl)"
+                    >
+                      <Check v-if="isTemplateOn(tpl.id)" :size="12" />
+                    </button>
+                    <span class="tpl-label" @click="toggleTemplate(tpl)" v-text="t(tpl.labelKey)" />
+                    <button
+                      type="button"
+                      class="tpl-help"
+                      :class="{ 'tpl-help--on': openTemplate === tpl.id }"
+                      :title="t('settings.tplWhatsInside')"
+                      @click="toggleTemplateHelp(tpl.id)"
+                    >
+                      <HelpCircle :size="13" />
+                    </button>
+                  </div>
+                  <div v-if="openTemplate === tpl.id" class="tpl-detail">
+                    <p class="tpl-detail-text" v-text="t(tpl.detailKey)" />
+                    <p
+                      class="tpl-detail-count"
+                      v-text="t('settings.tplEntries', { count: templateItems(tpl).length })"
+                    />
+                    <div class="tpl-chips">
+                      <span
+                        v-for="item in templateItems(tpl)"
+                        :key="item"
+                        class="tpl-chip mono"
+                        v-text="item"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="split-tabs">
+                <button
+                  type="button"
+                  class="split-tab"
+                  :class="{ 'split-tab--active': splitTab === 'file' }"
+                  @click="splitTab = 'file'"
+                >
+                  <FolderOpen :size="13" />
+                  <span v-text="t('settings.fromFile')" />
+                </button>
+                <button
+                  type="button"
+                  class="split-tab"
+                  :class="{ 'split-tab--active': splitTab === 'process' }"
+                  @click="switchToProcess"
+                >
+                  <AppWindow :size="13" />
+                  <span v-text="t('settings.runningApps')" />
+                </button>
+                <button
+                  type="button"
+                  class="split-tab"
+                  :class="{ 'split-tab--active': splitTab === 'games' }"
+                  @click="splitTab = 'games'"
+                >
+                  <Gamepad2 :size="13" />
+                  <span v-text="t('settings.detectGames')" />
+                </button>
+                <button
+                  type="button"
+                  class="split-tab"
+                  :class="{ 'split-tab--active': splitTab === 'domains' }"
+                  @click="splitTab = 'domains'"
+                >
+                  <Globe :size="13" />
+                  <span v-text="t('settings.tabDomains')" />
+                </button>
+                <button
+                  type="button"
+                  class="split-tab"
+                  :class="{ 'split-tab--active': splitTab === 'ips' }"
+                  @click="splitTab = 'ips'"
+                >
+                  <Network :size="13" />
+                  <span v-text="t('settings.tabIps')" />
+                </button>
+              </div>
+
+              <div v-if="splitTab === 'file'" class="split-panel">
+                <div class="add-app-row">
+                  <input
+                    v-model="newApp"
+                    type="text"
+                    :placeholder="t('settings.appPathPlaceholder')"
+                    class="app-input"
+                    @keydown.enter="addAppManual"
+                  />
+                  <button
+                    type="button"
+                    class="app-browse-btn"
+                    :title="t('settings.browseTitle')"
+                    @click="browseFile"
+                  >
+                    <FolderOpen :size="14" />
+                  </button>
+                  <button
+                    type="button"
+                    class="app-add-btn"
+                    :disabled="!newApp.trim()"
+                    @click="addAppManual"
+                    v-text="t('settings.addApp')"
+                  />
+                </div>
+              </div>
+
+              <div v-else-if="splitTab === 'process'" class="split-panel">
+                <div class="add-app-row">
+                  <input
+                    v-model="newProcess"
+                    type="text"
+                    :placeholder="t('settings.processPlaceholder')"
+                    class="app-input"
+                    @keydown.enter="submitProcess"
+                  />
+                  <button
+                    type="button"
+                    class="app-add-btn"
+                    :disabled="!newProcess.trim()"
+                    @click="submitProcess"
+                    v-text="t('settings.addProcess')"
+                  />
+                </div>
+                <ul v-if="vpnStore.settings.split_processes.length > 0" class="rule-list">
+                  <li
+                    v-for="name in vpnStore.settings.split_processes"
+                    :key="name"
+                    class="rule-item"
+                  >
+                    <Cpu :size="13" class="rule-icon" />
+                    <span class="rule-value mono" v-text="name" />
+                    <button
+                      type="button"
+                      class="bypass-remove"
+                      :title="t('settings.removeTitle')"
+                      @click="vpnStore.removeSplitProcess(name)"
+                    >
+                      <X :size="13" />
+                    </button>
+                  </li>
+                </ul>
+                <div class="process-search">
+                  <Search :size="13" class="proc-search-icon" />
+                  <input
+                    v-model="procQuery"
+                    type="text"
+                    :placeholder="t('settings.searchRunningApps')"
+                    class="proc-search-input"
+                  />
+                  <button
+                    type="button"
+                    class="proc-refresh-btn"
+                    :disabled="loadingProcs"
+                    :title="t('settings.refreshTitle')"
+                    @click="loadProcesses"
+                  >
+                    <Loader2 v-if="loadingProcs" :size="13" class="spin" />
+                    <RefreshCw v-else :size="13" />
+                  </button>
+                </div>
+
+                <div class="proc-list-wrap">
+                  <p
+                    v-if="loadingProcs && filteredProcs.length === 0"
+                    class="proc-hint"
+                    v-text="t('settings.loadingProcesses')"
+                  />
+                  <p
+                    v-else-if="filteredProcs.length === 0"
+                    class="proc-hint"
+                    v-text="t('settings.noProcessesFound')"
+                  />
+                  <ul v-else class="proc-list">
+                    <li
+                      v-for="proc in filteredProcs"
+                      :key="proc.path"
+                      class="proc-row"
+                      :class="{ 'proc-row--added': isBypassed(proc.path) }"
+                      @click="toggleProcess(proc.path)"
+                    >
+                      <span class="proc-ico">
+                        <img
+                          v-if="appIcons[proc.path]"
+                          :src="appIcons[proc.path]"
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <span
+                          v-else
+                          class="proc-ico-letter"
+                          v-text="proc.name.slice(0, 1).toUpperCase()"
+                        />
+                      </span>
+                      <div class="proc-info">
+                        <span class="proc-name" v-text="proc.name" />
+                        <span class="proc-path mono" v-text="proc.path" />
+                      </div>
+                      <div class="proc-check" :class="{ 'proc-check--on': isBypassed(proc.path) }">
+                        <Check v-if="isBypassed(proc.path)" :size="12" />
+                        <Plus v-else :size="12" />
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div v-else-if="splitTab === 'games'" class="split-panel">
+                <div class="games-scan-row">
+                  <p class="games-scan-desc" v-text="t('settings.gamesScanDesc')" />
+                  <button
+                    type="button"
+                    class="games-scan-btn"
+                    :disabled="scanningGames"
+                    @click="scanGames"
+                  >
+                    <Loader2 v-if="scanningGames" :size="14" class="spin" />
+                    <Gamepad2 v-else :size="14" />
+                    <span
+                      v-text="scanningGames ? t('settings.scanning') : t('settings.scanForGames')"
+                    />
+                  </button>
+                </div>
+
+                <div v-if="detectedGames.length > 0" class="games-results">
+                  <div class="process-search">
+                    <Search :size="13" class="proc-search-icon" />
+                    <input
+                      v-model="gameQuery"
+                      type="text"
+                      :placeholder="t('settings.gamesSearch')"
+                      class="proc-input"
+                    />
+                  </div>
+                  <div class="games-bulk-row">
+                    <button
+                      type="button"
+                      class="games-bulk-btn"
+                      @click="selectAllGames"
+                      v-text="t('settings.gamesSelectAll')"
+                    />
+                    <button
+                      type="button"
+                      class="games-bulk-btn"
+                      @click="selectedGameKeys.clear()"
+                      v-text="t('settings.gamesClearSel')"
+                    />
+                  </div>
+                  <p
+                    v-if="filteredGames.length === 0"
+                    class="split-empty"
+                    v-text="t('settings.gamesNothingFound')"
+                  />
+                  <ul v-else class="games-list">
+                    <li
+                      v-for="game in filteredGames"
+                      :key="game.key"
+                      class="game-row"
+                      :class="{ 'game-row--selected': selectedGameKeys.has(game.key) }"
+                      @click="toggleGameSelection(game.key)"
+                    >
+                      <div
+                        class="game-check"
+                        :class="{ 'game-check--on': selectedGameKeys.has(game.key) }"
+                      >
+                        <Check v-if="selectedGameKeys.has(game.key)" :size="12" />
+                      </div>
+                      <span class="proc-ico">
+                        <img
+                          v-if="appIcons[game.exePaths[0]]"
+                          :src="appIcons[game.exePaths[0]]"
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <Gamepad2 v-else :size="13" />
+                      </span>
+                      <div class="game-info">
+                        <span class="game-name" v-text="game.displayName" />
+                        <span class="game-count mono">
+                          <span class="game-launcher" v-text="game.launcher" />
+                          {{ t('settings.executables', { count: game.exePaths.length }) }}
+                        </span>
+                      </div>
+                      <span
+                        v-if="game.recommended"
+                        class="game-badge"
+                        v-text="t('settings.gamesRecommended')"
+                      />
+                    </li>
+                  </ul>
+                  <button
+                    type="button"
+                    class="games-add-btn"
+                    :disabled="selectedGameKeys.size === 0"
+                    @click="addSelectedGames"
+                    v-text="t('settings.addSelectedToBypass')"
+                  />
+                </div>
+              </div>
+
+              <div v-else-if="splitTab === 'domains'" class="split-panel">
+                <div class="add-app-row">
+                  <input
+                    v-model="newDomain"
+                    type="text"
+                    :placeholder="t('settings.domainPlaceholder')"
+                    class="app-input"
+                    @keydown.enter="submitDomain"
+                  />
+                  <button
+                    type="button"
+                    class="app-add-btn"
+                    :disabled="!newDomain.trim()"
+                    @click="submitDomain"
+                    v-text="t('settings.addDomain')"
+                  />
+                </div>
+                <p
+                  v-if="vpnStore.settings.split_domains.length === 0"
+                  class="split-empty"
+                  v-text="t('settings.noDomains')"
+                />
+                <ul v-else class="rule-list">
+                  <li
+                    v-for="domain in vpnStore.settings.split_domains"
+                    :key="domain"
+                    class="rule-item"
+                  >
+                    <Globe :size="13" class="rule-icon" />
+                    <span class="rule-value mono" v-text="domain" />
+                    <button
+                      type="button"
+                      class="bypass-remove"
+                      :title="t('settings.removeTitle')"
+                      @click="vpnStore.removeSplitDomain(domain)"
+                    >
+                      <X :size="13" />
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              <div v-else-if="splitTab === 'ips'" class="split-panel">
+                <div class="add-app-row">
+                  <input
+                    v-model="newIp"
+                    type="text"
+                    :placeholder="t('settings.ipPlaceholder')"
+                    class="app-input"
+                    @keydown.enter="submitIp"
+                  />
+                  <button
+                    type="button"
+                    class="app-add-btn"
+                    :disabled="!newIp.trim()"
+                    @click="submitIp"
+                    v-text="t('settings.addIp')"
+                  />
+                </div>
+                <p
+                  v-if="vpnStore.settings.split_ips.length === 0"
+                  class="split-empty"
+                  v-text="t('settings.noIps')"
+                />
+                <ul v-else class="rule-list">
+                  <li v-for="cidr in vpnStore.settings.split_ips" :key="cidr" class="rule-item">
+                    <Network :size="13" class="rule-icon" />
+                    <span class="rule-value mono" v-text="cidr" />
+                    <button
+                      type="button"
+                      class="bypass-remove"
+                      :title="t('settings.removeTitle')"
+                      @click="vpnStore.removeSplitIp(cidr)"
+                    >
+                      <X :size="13" />
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              <div v-if="vpnStore.settings.bypass_apps.length > 0" class="bypass-list-wrap">
+                <p
+                  class="bypass-list-title"
+                  v-text="
+                    t('settings.bypassedApps', { count: vpnStore.settings.bypass_apps.length })
+                  "
+                />
+                <ul class="bypass-list">
+                  <li v-for="app in vpnStore.settings.bypass_apps" :key="app" class="bypass-item">
+                    <span class="bypass-icon-wrap">
+                      <img v-if="appIcons[app]" :src="appIcons[app]" alt="" />
+                      <AppWindow v-else :size="13" />
+                    </span>
+                    <span class="bypass-path mono" v-text="appDisplayName(app)" />
+                    <span class="bypass-full-path mono" v-text="app" />
+                    <button
+                      type="button"
+                      class="bypass-remove"
+                      :title="t('settings.removeTitle')"
+                      @click="removeApp(app)"
+                    >
+                      <X :size="12" />
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              <p v-else class="split-empty" v-text="t('settings.noAppsConfigured')" />
+            </template>
+          </div>
+
+          <div v-else-if="activeTab === 'about'" class="about-stack">
+            <div class="card">
+              <div class="about-row">
+                <span class="about-label" v-text="t('settings.version')" />
+                <span class="about-value mono">v0.2.0</span>
+              </div>
+
+              <div class="about-row" :title="coreInfo?.path || ''">
+                <span class="about-label" v-text="t('settings.coreVersion')" />
+                <span
+                  class="about-value mono"
+                  v-text="coreInfo && coreInfo.found ? 'sing-box ' + coreInfo.version : '—'"
+                />
+              </div>
+
+              <button
+                type="button"
+                class="about-row about-row--clickable"
+                v-if="coreInfo && coreInfo.found"
+                @click="copyCoreHash"
+              >
+                <span class="about-label" v-text="t('settings.coreHash')" />
+                <span
+                  class="about-value mono"
+                  v-text="copiedHash ? t('settings.copied') : coreShortHash"
+                />
+              </button>
+
+              <div class="setting-row">
+                <div class="row-left">
+                  <Wrench :size="16" class="row-icon row-icon--danger" />
+                  <div class="row-text">
+                    <p class="row-title" v-text="t('settings.emergencyRepair')" />
+                    <p class="row-desc" v-text="t('settings.emergencyRepairDesc')" />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="repair-btn"
+                  :disabled="repairing"
+                  @click="runRepair"
+                >
+                  <Loader2 v-if="repairing" :size="13" class="spin" />
+                  <span v-text="t('settings.repair')" />
+                </button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="setting-row">
+                <div class="row-left">
+                  <Clipboard :size="16" class="row-icon" />
+                  <div class="row-text">
+                    <p class="row-title" v-text="t('settings.cfgTitle')" />
+                    <p class="row-desc" v-text="t('settings.cfgDesc')" />
+                  </div>
+                </div>
+                <div class="games-bulk-row">
+                  <button
+                    type="button"
+                    class="games-bulk-btn"
+                    @click="exportConfig"
+                    v-text="t('settings.cfgExport')"
+                  />
+                  <button
+                    type="button"
+                    class="games-bulk-btn"
+                    @click="importConfigFile"
+                    v-text="t('settings.cfgImport')"
+                  />
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <button type="button" style="flex: 1" class="reset-btn" @click="reset">
+                  <RotateCcw :size="14" />
+                  <span v-text="t('settings.resetDefaults')" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, nextTick, watch } from 'vue';
+import { Wand2 } from '../lib/appIcons';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { Component } from 'vue';
 import { useRoute } from 'vue-router';
-import { Activity,
-  ShieldAlert, Power, Wifi, Globe2, Bell, RotateCcw,
-  FolderOpen, Search, RefreshCw, Loader2, Check,
-  Plus, X, AppWindow, Atom, Shuffle, Lock, Rocket, Gamepad2, Languages, Globe, Network,
-  Orbit, Map as MapIcon, Info, Sparkles, MapPin, Layers, Keyboard, Zap, Timer,
-  Shield, Crosshair, Radar, HelpCircle, Cpu,
-} from 'lucide-vue-next';
-import { open } from '@tauri-apps/api/dialog';
+import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  ShieldAlert,
+  Power,
+  Wifi,
+  Globe2,
+  Bell,
+  RotateCcw,
+  FolderOpen,
+  Search,
+  RefreshCw,
+  Loader2,
+  Check,
+  Clipboard,
+  Plus,
+  X,
+  AppWindow,
+  Atom,
+  Shuffle,
+  Lock,
+  Rocket,
+  Gamepad2,
+  Languages,
+  Globe,
+  Network,
+  Map as MapIcon,
+  Info,
+  Sparkles,
+  MapPin,
+  Layers,
+  Keyboard,
+  Zap,
+  Timer,
+  Shield,
+  ShieldOff,
+  Crosshair,
+  Filter,
+  Radar,
+  HelpCircle,
+  Cpu,
+  Wrench,
+} from '../lib/appIcons';
+import { open, save } from '@tauri-apps/api/dialog';
+import { writeText } from '@tauri-apps/api/clipboard';
+import { writeTextFile, readTextFile } from '@tauri-apps/api/fs';
 import { invoke } from '@tauri-apps/api/tauri';
 import { useVpnStore } from '../stores/vpn';
-import type { AppSettings, DetectedGame } from '../types/vpn.d';
+import type { AppSettings, AutoOffMode, BlockReport, DetectedGame } from '../types/vpn.d';
 import { useNotifications } from '../composables/useNotifications';
 import { askConfirm } from '../composables/useConfirm';
 import { t } from '../i18n';
+import { appIcons, fetchAppIcons } from '../lib/appIconCache';
+import { gsap } from 'gsap';
+import { motionLevelRef, setMotionLevel } from '../lib/motion';
 
 interface InstalledApp {
   name: string;
@@ -1072,6 +1741,293 @@ const vpnStore = useVpnStore();
 const route = useRoute();
 const { pushToast } = useNotifications();
 
+type SplitModeKey = AppSettings['split_mode'];
+
+interface SplitTemplateDef {
+  id: string;
+  labelKey: string;
+  detailKey: string;
+  domains: string[];
+  matchNames?: string[];
+}
+
+const SPLIT_MODES: SplitModeKey[] = ['off', 'exclude', 'include', 'smart'];
+const SPLIT_MODE_LABELS: Record<SplitModeKey, string> = {
+  off: 'settings.splitModeOff',
+  exclude: 'settings.splitModeExclude',
+  include: 'settings.splitModeInclude',
+  smart: 'settings.splitModeSmart',
+};
+const SPLIT_MODE_HINTS: Record<SplitModeKey, string> = {
+  off: 'settings.splitModeOffDesc',
+  exclude: 'settings.splitModeExcludeDesc',
+  include: 'settings.splitModeIncludeDesc',
+  smart: 'settings.splitModeSmartDesc',
+};
+const SPLIT_MODE_ICONS: Record<SplitModeKey, Component> = {
+  off: ShieldOff,
+  exclude: Filter,
+  include: Crosshair,
+  smart: Radar,
+};
+
+const SPLIT_TEMPLATES: SplitTemplateDef[] = [
+  {
+    id: 'torrent-direct',
+    labelKey: 'settings.tplTorrentDirect',
+    detailKey: 'settings.tplTorrentDirectDetail',
+    domains: [],
+    matchNames: [
+      'qbittorrent.exe',
+      'utorrent.exe',
+      'bittorrent.exe',
+      'deluge.exe',
+      'transmission.exe',
+      'transmission-qt.exe',
+      'tixati.exe',
+      'biglybt.exe',
+      'vuze.exe',
+      'webtorrent.exe',
+      'folx.exe',
+    ],
+  },
+  {
+    id: 'banking-direct',
+    labelKey: 'settings.tplBankingDirect',
+    detailKey: 'settings.tplBankingDirectDetail',
+    domains: [
+      'sberbank.ru',
+      'sbrf.ru',
+      'online.sberbank.ru',
+      'tinkoff.ru',
+      'tbank.ru',
+      'alfabank.ru',
+      'vtb.ru',
+      'gazprombank.ru',
+      'psbank.ru',
+      'rencredit.ru',
+      'gosuslugi.ru',
+      'nalog.gov.ru',
+      'nalog.ru',
+      'sfr.gov.ru',
+      'max.ru',
+      'vk.com',
+      'vk.ru',
+    ],
+  },
+];
+
+const splitTab = ref<'file' | 'process' | 'games' | 'domains' | 'ips'>('file');
+const splitOn = computed(() => vpnStore.settings.split_mode !== 'off');
+
+/* ---------- DNS center + selector groups ---------- */
+
+interface DnsPreset {
+  key: string;
+  labelKey: string;
+}
+
+const DNS_PRESETS: DnsPreset[] = [
+  { key: 'cloudflare', labelKey: 'settings.dnsPresetCloudflare' },
+  { key: 'google', labelKey: 'settings.dnsPresetGoogle' },
+  { key: 'quad9', labelKey: 'settings.dnsPresetQuad9' },
+  { key: 'adguard', labelKey: 'settings.dnsPresetAdGuard' },
+];
+
+
+const openDnsHelp = ref(false);
+
+function activeDnsKey(): string {
+  const s = vpnStore.settings;
+  return s.dns_custom_doh && s.dns_custom_doh.trim() ? 'custom' : s.dns_remote ?? 'cloudflare';
+}
+// expose as computed for template
+const activeDnsKeyRef = computed(() => activeDnsKey());
+
+function setDnsPreset(key: string) {
+  if (key === 'custom') return;
+  if (vpnStore.settings.dns_remote === (key as never) && !(vpnStore.settings.dns_custom_doh ?? '').trim())
+    return;
+  vpnStore.updateSettings({ dns_remote: key as never, dns_custom_doh: '' });
+  vpnStore.stageSplitChange();
+}
+
+const showCustomDoh = computed(
+  () => activeDnsKeyRef.value === 'custom' || !!(vpnStore.settings.dns_custom_doh ?? '').trim(),
+);
+
+function commitCustomDoh(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    vpnStore.updateSettings({ dns_custom_doh: '' });
+    vpnStore.stageSplitChange();
+    return;
+  }
+  if (!/^https:\/\//.test(trimmed)) {
+    pushToast('error', t('settings.dnsCustomInvalid'), t('settings.dnsCustomHint'), 4500);
+    return;
+  }
+  vpnStore.updateSettings({ dns_custom_doh: trimmed });
+  vpnStore.stageSplitChange();
+}
+
+function toggleDnsList(kind: 'ads' | 'trackers') {
+  if (kind === 'ads') {
+    vpnStore.updateSettings({ dns_block_ads: vpnStore.settings.dns_block_ads === false });
+  } else {
+    vpnStore.updateSettings({ dns_block_trackers: vpnStore.settings.dns_block_trackers === false });
+  }
+  vpnStore.stageSplitChange();
+}
+
+const processes = ref<InstalledApp[]>([]);
+const loadingProcs = ref(false);
+const procQuery = ref('');
+const newApp = ref('');
+const newProcess = ref('');
+const newDomain = ref('');
+const newIp = ref('');
+
+const scanningGames = ref(false);
+const detectedGames = ref<DetectedGame[]>([]);
+const gameQuery = ref('');
+const selectedGameKeys = ref(new Set<string>());
+
+const openTemplate = ref('');
+const blockReports = ref<BlockReport[]>([]);
+
+const alwaysOnPending = ref(false);
+const startOnBootPending = ref(false);
+const repairing = ref(false);
+
+interface CoreInfo {
+  found: boolean;
+  version: string;
+  sha256: string;
+  path: string;
+}
+
+const coreInfo = ref<CoreInfo | null>(null);
+const copiedHash = ref(false);
+let copyHashTimer: ReturnType<typeof setTimeout> | null = null;
+
+onMounted(() => {
+  invoke<CoreInfo>('core_info')
+    .then((info) => {
+      coreInfo.value = info;
+    })
+    .catch(() => {});
+});
+
+const coreShortHash = computed(() => {
+  const hash = coreInfo.value?.sha256 ?? '';
+  return hash ? `${hash.slice(0, 16)}…${hash.slice(-8)}` : '';
+});
+
+const telemetryDetailsOpen = ref(false);
+const telemetryRowRef = ref<HTMLElement | null>(null);
+const TM_NEVER = ['settings.tmNo1', 'settings.tmNo2', 'settings.tmNo3'];
+const TELEMETRY_SAMPLE = [
+  '{',
+  '  "event": "connect_clicked",',
+  '  "sessionId": "1737750000000-12345",   // random per launch',
+  '  "appVersion": "0.2.0",',
+  '  "os": "windows",',
+  '  "props": {}',
+  '}',
+].join('\n');
+
+async function copyCoreHash() {
+  const hash = coreInfo.value?.sha256;
+  if (!hash || copiedHash.value) return;
+  try {
+    await writeText(hash);
+    copiedHash.value = true;
+    if (copyHashTimer) clearTimeout(copyHashTimer);
+    copyHashTimer = setTimeout(() => {
+      copiedHash.value = false;
+    }, 1600);
+  } catch {}
+}
+
+
+
+
+
+
+const CFG_KEYS = ['wawity_settings', 'wawity_roles'] as const;
+
+function buildConfigPayload(): Record<string, unknown> {
+  const data: Record<string, unknown> = {
+    app: 'wawity',
+    schema: 2,
+    exportedAt: new Date().toISOString(),
+  };
+  for (const key of CFG_KEYS) {
+    const raw = localStorage.getItem(key);
+    if (raw) data[key] = JSON.parse(raw);
+  }
+  return data;
+}
+
+async function exportConfig() {
+  const path = await save({
+    defaultPath: `wawity-config-${new Date().toISOString().slice(0, 10)}.wawity`,
+    filters: [{ name: 'Wawity configuration', extensions: ['wawity'] }],
+  });
+  if (!path) return;
+  try {
+    await writeTextFile(path, JSON.stringify(buildConfigPayload(), null, 2));
+    pushToast('success', t('settings.cfgSaved'), String(path), 4500);
+  } catch (err) {
+    pushToast('error', t('settings.cfgInvalid'), String(err), 5000);
+  }
+}
+
+async function importConfigFile() {
+  const selected = await open({
+    multiple: false,
+    filters: [{ name: 'Wawity configuration', extensions: ['wawity', 'json'] }],
+  });
+  if (typeof selected !== 'string' || !selected.trim()) return;
+  try {
+    const text = await readTextFile(selected);
+    applyConfigPayload(text);
+  } catch (err) {
+    pushToast('error', t('settings.cfgInvalid'), String(err), 5000);
+  }
+}
+
+function applyConfigPayload(text: string) {
+  try {
+    const data = JSON.parse(text) as Record<string, unknown>;
+    if (data.app !== 'wawity') throw new Error('wrong file');
+    let restored = false;
+    for (const key of CFG_KEYS) {
+      if (data[key]) {
+        localStorage.setItem(key, JSON.stringify(data[key]));
+        restored = true;
+      }
+    }
+    if (!restored) throw new Error('empty config');
+    window.location.reload();
+  } catch (err) {
+    pushToast('error', t('settings.cfgInvalid'), String(err), 5000);
+  }
+}
+
+function setUiStyle(style: 'wawity' | 'material') {
+  if (vpnStore.settings.ui_style === style) return;
+  vpnStore.updateSettings({ ui_style: style });
+}
+
+const motionFancy = computed(() => motionLevelRef().value === 'fancy');
+
+function setMotionMode(level: 'simple' | 'fancy') {
+  if (motionLevelRef().value === level) return;
+  setMotionLevel(level);
+  vpnStore.updateSettings({ motion_level: level });
+}
 function boolSetting(key: BooleanSettingKey) {
   return computed<boolean>({
     get: () => vpnStore.settings[key] as boolean,
@@ -1080,11 +2036,35 @@ function boolSetting(key: BooleanSettingKey) {
 }
 
 const AUTO_PING_CHOICES = [5, 15, 30, 60];
+const AUTO_OFF_CHOICES = [15, 30, 60, 120];
+const AUTO_OFF_MODES: AutoOffMode[] = ['off', 'timer', 'process'];
 
 const autoPingMinutes = computed<number>({
   get: () => vpnStore.settings.auto_ping_minutes ?? 0,
   set: (value: number) => vpnStore.updateSettings({ auto_ping_minutes: value }),
 });
+
+const autoOffMode = ref<AutoOffMode>(vpnStore.autoOff.mode);
+const autoOffMinutes = ref<number>(vpnStore.settings.auto_off_default_minutes || 30);
+const autoOffProcess = ref(vpnStore.autoOff.process || '');
+
+const autoOffStatus = computed(() => {
+  if (vpnStore.autoOff.mode === 'timer') {
+    return t('autoOff.armedTimer', { left: vpnStore.autoOffLabel });
+  }
+  if (vpnStore.autoOff.mode === 'process') {
+    return t('autoOff.armedProcess', { app: appDisplayName(vpnStore.autoOff.process) });
+  }
+  return t('autoOff.none');
+});
+
+watch(
+  () => vpnStore.autoOff.mode,
+  (mode) => {
+    autoOffMode.value = mode;
+    if (mode === 'process') autoOffProcess.value = vpnStore.autoOff.process;
+  },
+);
 
 const autoConnect = boolSetting('auto_connect');
 const lanAccess = boolSetting('lan_access');
@@ -1092,7 +2072,6 @@ const multihopEnabled = boolSetting('multihop_enabled');
 const blockTrackers = boolSetting('block_trackers');
 const notificationsEnabled = boolSetting('notifications');
 const quantumResistant = boolSetting('quantum_resistant');
-const blackHoleBg = boolSetting('black_hole_bg');
 const liquidGlass = boolSetting('liquid_glass');
 const discordRpc = boolSetting('discord_rpc');
 const discordRpcShowServer = boolSetting('discord_rpc_show_server');
@@ -1103,6 +2082,34 @@ const dnsLeakGuard = boolSetting('dns_leak_guard');
 const tunnelOwnTraffic = boolSetting('tunnel_own_traffic');
 const allowInsecureTls = boolSetting('allow_insecure_tls');
 const onlineGeo = boolSetting('online_geolocation');
+const hwidEnabled = boolSetting('hwid_enabled');
+const hwidCopied = ref(false);
+let hwidCopyTimer: ReturnType<typeof setTimeout> | null = null;
+
+const hwidValue = computed(() => vpnStore.hwid);
+const hwidShort = computed(() =>
+  vpnStore.hwid
+    ? `${vpnStore.hwid.slice(0, 10)}…${vpnStore.hwid.slice(-8)}`
+    : t('settings.deviceIdPending'),
+);
+
+async function copyHwid() {
+  if (!vpnStore.hwid) return;
+  try {
+    await writeText(vpnStore.hwid);
+    hwidCopied.value = true;
+    if (hwidCopyTimer) clearTimeout(hwidCopyTimer);
+    hwidCopyTimer = setTimeout(() => {
+      hwidCopied.value = false;
+    }, 1600);
+  } catch {
+    hwidCopied.value = false;
+  }
+}
+
+async function resetHwid() {
+  await vpnStore.resetHwid();
+}
 
 const bootstrapOptions: Array<AppSettings['bootstrap_dns']> = ['cloudflare', 'quad9', 'google'];
 
@@ -1185,145 +2192,26 @@ function setServerView(view: 'list' | 'globe') {
   vpnStore.updateSettings({ server_view: view });
 }
 
-function setBlackHoleDetail(level: AppSettings['black_hole_detail']) {
-  if (vpnStore.settings.black_hole_detail === level) return;
-  vpnStore.updateSettings({ black_hole_detail: level });
-}
-
-type SplitModeKey = AppSettings['split_mode'];
-
-const SPLIT_MODES: SplitModeKey[] = ['exclude', 'include', 'smart', 'off'];
-
-const SPLIT_MODE_ICONS: Record<SplitModeKey, Component> = {
-  exclude: Shield,
-  include: Crosshair,
-  smart: Radar,
-  off: Power,
-};
-
-const SPLIT_MODE_LABELS: Record<SplitModeKey, string> = {
-  exclude: 'settings.splitModeExclude',
-  include: 'settings.splitModeInclude',
-  smart: 'settings.splitModeSmart',
-  off: 'settings.splitModeOff',
-};
-
-const SPLIT_MODE_HINTS: Record<SplitModeKey, string> = {
-  exclude: 'settings.splitModeExcludeDesc',
-  include: 'settings.splitModeIncludeDesc',
-  smart: 'settings.splitModeSmartDesc',
-  off: 'settings.splitModeOffDesc',
-};
-
-type SplitTemplateDef = {
-  id: string;
-  labelKey: string;
-  detailKey: string;
-  domains: string[];
-  matchNames?: string[];
-};
-
-const TORRENT_CLIENTS: string[] = [
-  'qbittorrent.exe', 'qbittorrent-nox.exe', 'utorrent.exe', 'utorrentie.exe',
-  'ut_web.exe', 'bittorrent.exe', 'bittorrentweb.exe', 'transmission-qt.exe',
-  'transmission-gtk.exe', 'transmission-daemon.exe', 'transmission-remote.exe', 'deluge.exe',
-  'deluge-gtk.exe', 'deluged.exe', 'deluge-web.exe', 'deluge-console.exe',
-  'tixati.exe', 'vuze.exe', 'azureus.exe', 'biglybt.exe',
-  'frostwire.exe', 'limewire.exe', 'bitcomet.exe', 'bitlord.exe',
-  'bitspirit.exe', 'halite.exe', 'ktorrent.exe', 'rtorrent.exe',
-  'flud.exe', 'picotorrent.exe', 'tribler.exe', 'torrex.exe',
-  'folx.exe', 'webtorrent.exe', 'mediaget.exe', 'zona.exe',
-  'acestream.exe', 'ace_engine.exe', 'aria2c.exe', 'motrix.exe',
-  'torrentgalaxy.exe', 'bitport.exe', 'seedr.exe', 'nicotine.exe',
-  'soulseekqt.exe', 'baretorrent.exe', 'lftp.exe', 'torrentr.exe',
-  'thunder.exe', 'xunlei.exe',
-];
-
-const DIRECT_RU_DOMAINS: string[] = [
-  'sberbank.ru', 'sber.ru', 'sbrf.ru', 'tinkoff.ru',
-  'tbank.ru', 'alfabank.ru', 'alfabank.com', 'vtb.ru',
-  'gazprombank.ru', 'gpb.ru', 'raiffeisen.ru', 'rshb.ru',
-  'open.ru', 'psbank.ru', 'mkb.ru', 'sovcombank.ru',
-  'uralsib.ru', 'rosbank.ru', 'otpbank.ru', 'homecredit.ru',
-  'tkb.ru', 'avangard.ru', 'absolutbank.ru', 'unicredit.ru',
-  'citibank.ru', 'bspb.ru', 'akbars.ru', 'mtsbank.ru',
-  'pochtabank.ru', 'dom.rf', 'cbr.ru', 'nspk.ru',
-  'mironline.ru', 'yoomoney.ru', 'qiwi.com', 'gosuslugi.ru',
-  'esia.gosuslugi.ru', 'nalog.gov.ru', 'nalog.ru', 'mos.ru',
-  'pfr.gov.ru', 'sfr.gov.ru', 'fss.ru', 'mvd.ru',
-  'gibdd.ru', 'rosreestr.gov.ru', 'roskazna.gov.ru', 'minfin.gov.ru',
-  'fedresurs.ru', 'reestr-zalogov.ru', 'max.ru', 'oneme.ru',
-  'vk.com', 'vk.ru', 'vk.me', 'vkontakte.ru',
-  'userapi.com', 'vk-cdn.net', 'vkuseraudio.net', 'vkuservideo.net',
-];
-
-const SPLIT_TEMPLATES: SplitTemplateDef[] = [
-  {
-    id: 'torrent-direct',
-    labelKey: 'settings.tplTorrentDirect',
-    detailKey: 'settings.tplTorrentDirectDetail',
-    domains: [],
-    matchNames: TORRENT_CLIENTS,
-  },
-  {
-    id: 'banking-direct',
-    labelKey: 'settings.tplBankingDirect',
-    detailKey: 'settings.tplBankingDirectDetail',
-    domains: DIRECT_RU_DOMAINS,
-  },
-];
-
-const openTemplate = ref('');
-const blockReports = ref<BlockReport[]>([]);
-const splitOn = computed(() => vpnStore.settings.split_mode !== 'off');
-
-const splitTab = ref<'file' | 'process' | 'games' | 'domains' | 'ips'>('file');
-const newDomain = ref('');
-const newProcess = ref('');
-const newIp = ref('');
-const gameQuery = ref('');
-const newApp = ref('');
-const procQuery = ref('');
-const processes = ref<InstalledApp[]>([]);
-const loadingProcs = ref(false);
-const repairing = ref(false);
-const alwaysOnPending = ref(false);
-const startOnBootPending = ref(false);
-const detectedGames = ref<DetectedGame[]>([]);
-const scanningGames = ref(false);
-const selectedGameKeys = reactive(new Set<string>());
-const appIcons = reactive<Record<string, string>>({});
-
-async function fetchAppIcons(paths: string[]) {
-  const missing = [...new Set(paths.filter((path) => path && !appIcons[path]))].slice(0, 400);
-  if (missing.length === 0) return;
-  for (let at = 0; at < missing.length; at += 64) {
-    const slice = missing.slice(at, at + 64);
-    try {
-      const loaded = await invoke<Array<string | null>>('collect_app_icons', { paths: slice });
-      loaded.forEach((image, index) => {
-        if (image) appIcons[slice[index]] = image;
-      });
-    } catch {
-      return;
-    }
-  }
-}
 
 watch(
   () => vpnStore.settings.bypass_apps,
   (apps) => {
     fetchAppIcons([...apps]);
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 );
 
 const killSwitchRowRef = ref<HTMLElement | null>(null);
 const multihopRowRef = ref<HTMLElement | null>(null);
 const alwaysOnRowRef = ref<HTMLElement | null>(null);
 const flashTarget = ref<string | null>(null);
+let flashTimer = 0;
 
 onMounted(() => {
+  const tabParam = route.query.tab;
+  if (typeof tabParam === 'string' && tabs.some((tb) => tb.key === tabParam)) {
+    activeTab.value = tabParam as TabKey;
+  }
   const highlight = route.query.highlight;
   if (highlight === 'killswitch' || highlight === 'alwayson') {
     activeTab.value = 'security';
@@ -1334,26 +2222,152 @@ onMounted(() => {
   }
   flashTarget.value = highlight;
   nextTick(() => {
-    const el = highlight === 'killswitch'
-      ? killSwitchRowRef.value
-      : highlight === 'alwayson'
-        ? alwaysOnRowRef.value
-        : multihopRowRef.value;
+    const el =
+      highlight === 'killswitch'
+        ? killSwitchRowRef.value
+        : highlight === 'alwayson'
+          ? alwaysOnRowRef.value
+          : multihopRowRef.value;
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
-  setTimeout(() => { flashTarget.value = null; }, 1800);
+  flashTimer = window.setTimeout(() => {
+    flashTarget.value = null;
+  }, 1800);
 });
+
+onUnmounted(() => {
+  if (flashTimer) window.clearTimeout(flashTimer);
+});
+
+const paneWrapRef = ref<HTMLElement | null>(null);
+let paneResetTimer = 0;
+
+function lockPaneHeight() {
+  const wrap = paneWrapRef.value;
+  if (!wrap) return;
+  if (paneResetTimer) {
+    window.clearTimeout(paneResetTimer);
+    paneResetTimer = 0;
+  }
+  wrap.style.height = `${wrap.offsetHeight}px`;
+  wrap.classList.add('pane-wrap--animating');
+}
+
+function growPaneHeight(el: Element) {
+  const wrap = paneWrapRef.value;
+  if (!wrap) return;
+  const from = wrap.offsetHeight;
+  const to = (el as HTMLElement).offsetHeight;
+  if (to === from) {
+    finishPaneResize();
+    return;
+  }
+  wrap.style.height = `${from}px`;
+  requestAnimationFrame(() => {
+    wrap.style.height = `${to}px`;
+    paneResetTimer = window.setTimeout(finishPaneResize, 380);
+  });
+}
+
+function finishPaneResize() {
+  const wrap = paneWrapRef.value;
+  if (!wrap) return;
+  wrap.style.height = '';
+  wrap.classList.remove('pane-wrap--animating');
+  paneResetTimer = 0;
+}
+
+watch(
+  () => route.query.tab,
+  (tabParam) => {
+    if (typeof tabParam === 'string' && tabs.some((tb) => tb.key === tabParam)) {
+      activeTab.value = tabParam as TabKey;
+    }
+  },
+);
+
+watch(
+  () => route.query.highlight,
+  (highlight) => {
+    if (highlight !== 'killswitch' && highlight !== 'alwayson' && highlight !== 'multihop') return;
+    activeTab.value = highlight === 'multihop' ? 'connection' : 'security';
+    flashTarget.value = highlight;
+    nextTick(() => {
+      const el =
+        highlight === 'killswitch'
+          ? killSwitchRowRef.value
+          : highlight === 'alwayson'
+            ? alwaysOnRowRef.value
+            : multihopRowRef.value;
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    if (flashTimer) window.clearTimeout(flashTimer);
+    flashTimer = window.setTimeout(() => {
+      flashTarget.value = null;
+    }, 1800);
+  },
+);
 
 const filteredProcs = computed(() => {
   const q = procQuery.value.trim().toLowerCase();
   if (!q) return processes.value;
-  return processes.value.filter(p =>
-    p.name.toLowerCase().includes(q) || p.path.toLowerCase().includes(q)
+  return processes.value.filter(
+    (p) => p.name.toLowerCase().includes(q) || p.path.toLowerCase().includes(q),
   );
 });
 
+const bypassSet = computed(() => new Set(vpnStore.settings.bypass_apps));
+function isBypassed(path: string): boolean {
+  return bypassSet.value.has(path);
+}
+
 function appDisplayName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
+}
+
+function autoOffPresetLabel(minutes: number): string {
+  if (minutes === 15) return t('autoOff.min15');
+  if (minutes === 30) return t('autoOff.min30');
+  if (minutes === 60) return t('autoOff.min60');
+  return t('autoOff.min120');
+}
+
+async function chooseAutoOffMode(mode: AutoOffMode) {
+  autoOffMode.value = mode;
+  if (mode === 'off') {
+    await vpnStore.disarmAutoOff();
+    return;
+  }
+  if (vpnStore.autoOffArmed && vpnStore.autoOff.mode !== mode) {
+    await vpnStore.disarmAutoOff();
+  }
+  if (mode === 'process' && processes.value.length === 0) {
+    await loadProcesses();
+  }
+}
+
+function armAutoOffMinutes(minutes: number) {
+  const safe = Math.max(1, Math.min(10080, Math.round(Number(minutes) || 0)));
+  autoOffMinutes.value = safe;
+  vpnStore.updateSettings({ auto_off_default_minutes: safe });
+  vpnStore.armAutoOffTimer(safe);
+}
+
+function armCustomAutoOff() {
+  const raw = Number(autoOffMinutes.value);
+  if (!Number.isFinite(raw) || raw < 1) return;
+  armAutoOffMinutes(raw);
+}
+
+async function armProcessAutoOff() {
+  const target = autoOffProcess.value.trim();
+  if (!target) return;
+  await vpnStore.armAutoOffProcess(target);
+}
+
+async function disableAutoOff() {
+  await vpnStore.disarmAutoOff();
+  autoOffMode.value = 'off';
 }
 
 async function browseFile() {
@@ -1380,7 +2394,7 @@ async function removeApp(path: string) {
 }
 
 async function toggleProcess(path: string) {
-  if (vpnStore.settings.bypass_apps.includes(path)) {
+  if (bypassSet.value.has(path)) {
     await vpnStore.removeBypassApp(path);
   } else {
     await vpnStore.addBypassApp(path);
@@ -1421,7 +2435,11 @@ async function scanGames() {
     if (games.length === 0) {
       pushToast('info', t('toast.noGamesFound'), t('toast.noGamesFoundDesc'));
     } else {
-      pushToast('success', t('toast.scanComplete'), t('toast.scanCompleteDesc', { count: games.length }));
+      pushToast(
+        'success',
+        t('toast.scanComplete'),
+        t('toast.scanCompleteDesc', { count: games.length }),
+      );
     }
   } catch (e) {
     pushToast('error', t('toast.scanFailed'), String(e), 6000);
@@ -1481,7 +2499,11 @@ async function runDetect() {
   }
   vpnStore.mergeSplitDomains(blocked);
   vpnStore.stageSplitChange();
-  pushToast('success', t('settings.smartFound'), t('settings.smartFoundDesc', { count: blocked.length }));
+  pushToast(
+    'success',
+    t('settings.smartFound'),
+    t('settings.smartFoundDesc', { count: blocked.length }),
+  );
 }
 
 function submitProcess() {
@@ -1595,9 +2617,15 @@ async function toggleAlwaysOn() {
   const next = !vpnStore.settings.always_on;
 
   const ok = await askConfirm({
-    title: next ? t('settings.confirmAlwaysOnEnableTitle') : t('settings.confirmAlwaysOnDisableTitle'),
-    description: next ? t('settings.confirmAlwaysOnEnableDesc') : t('settings.confirmAlwaysOnDisableDesc'),
-    confirmLabel: next ? t('settings.confirmAlwaysOnEnableAction') : t('settings.confirmAlwaysOnDisableAction'),
+    title: next
+      ? t('settings.confirmAlwaysOnEnableTitle')
+      : t('settings.confirmAlwaysOnDisableTitle'),
+    description: next
+      ? t('settings.confirmAlwaysOnEnableDesc')
+      : t('settings.confirmAlwaysOnDisableDesc'),
+    confirmLabel: next
+      ? t('settings.confirmAlwaysOnEnableAction')
+      : t('settings.confirmAlwaysOnDisableAction'),
     cancelLabel: t('settings.confirmCancel'),
     danger: true,
   });
@@ -1673,6 +2701,27 @@ async function reset() {
   }
   vpnStore.resetSettings();
 }
+
+const DPI_MODES = ['off', 'soft', 'medium', 'hard'];
+
+const dpiHint = computed(() => {
+  const mode = vpnStore.settings.dpi_profile || 'off';
+  return t('settings.dpiHint' + mode.charAt(0).toUpperCase() + mode.slice(1));
+});
+
+function dpiLabel(mode: string) {
+  return t('settings.dpi' + mode.charAt(0).toUpperCase() + mode.slice(1));
+}
+
+function setDpi(mode: string) {
+  vpnStore.updateSettings({ dpi_profile: mode as never });
+}
+
+function onRetries(event: Event) {
+  const raw = Number((event.target as HTMLInputElement).value);
+  const safe = Number.isFinite(raw) ? Math.max(0, Math.min(5, Math.round(raw))) : 2;
+  vpnStore.updateSettings({ failover_retries: safe });
+}
 </script>
 
 <style scoped>
@@ -1684,9 +2733,20 @@ async function reset() {
   margin: 0 auto;
 }
 
-.page-header { display: flex; flex-direction: column; gap: 4px; }
-.page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
-.page-sub { font-size: 13px; color: rgba(235, 238, 250, 0.55); }
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.page-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.page-sub {
+  font-size: 13px;
+  color: rgba(235, 238, 250, 0.55);
+}
 .seg {
   display: flex;
   gap: 4px;
@@ -1695,8 +2755,80 @@ async function reset() {
   align-self: center;
   border: 1px solid rgba(255, 255, 255, 0.09);
   background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(22px) saturate(160%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 10px 28px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.hwid-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hwid-value {
+  flex: 1 1 190px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: rgba(235, 238, 250, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: all;
+}
+
+.hwid-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.hwid-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(235, 238, 250, 0.78);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 220ms ease,
+    color 220ms ease,
+    border-color 220ms ease,
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hwid-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.hwid-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .seg-btn {
@@ -1719,15 +2851,21 @@ async function reset() {
     padding 340ms cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
-.seg-btn svg { flex-shrink: 0; }
+.seg-btn svg {
+  flex-shrink: 0;
+}
 
-.seg-btn:hover { color: rgba(255, 255, 255, 0.85); }
+.seg-btn:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
 
 .seg-btn--active {
   padding: 0 14px;
   background: rgba(255, 255, 255, 0.11);
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 4px 14px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 .seg-label-wrap {
@@ -1756,39 +2894,170 @@ async function reset() {
   opacity: 1;
   transform: translateX(0);
 }
+.pane-wrap {
+  transition: height 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pane-wrap--animating {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-wrap {
+    transition: none;
+  }
+}
+
 .pane-enter-active {
-  transition: transform 260ms cubic-bezier(0.34, 1.3, 0.64, 1);
+  animation: paneInFancy 240ms cubic-bezier(0.34, 1.3, 0.64, 1) both;
 }
 
 .pane-leave-active {
-  transition: opacity 110ms ease, transform 110ms ease;
+  animation: paneOutFancy 110ms ease both;
 }
 
-.pane-enter-from {
-  transform: translateY(12px) scale(0.99);
+@keyframes paneInFancy {
+  from { opacity: 0; transform: translateY(12px) scale(0.99); }
+  to { opacity: 1; transform: none; }
 }
 
-.pane-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.995);
+@keyframes paneOutFancy {
+  from { opacity: 1; }
+  to { opacity: 0; transform: translateY(-6px) scale(0.995); }
+}
+
+html.motion-fancy .pane-enter-active {
+  animation-name: paneInBlur;
+}
+
+html.motion-fancy .pane-leave-active {
+  animation-duration: 130ms;
+}
+
+@keyframes paneInBlur {
+  from { opacity: 0; transform: translateY(14px); filter: blur(5px); }
+  60% { filter: blur(2px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
 }
 .card {
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(24px) saturate(160%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0 18px 44px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(13px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 18px 44px rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
 
-.about-stack { display: flex; flex-direction: column; gap: 14px; }
+.about-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .about-link {
   font-size: 11.5px;
   color: #a78bfa;
   text-decoration: none;
 }
 
-.about-link:hover { text-decoration: underline; }
+.about-link:hover {
+  text-decoration: underline;
+}
+.about-row--clickable {
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+.about-row--clickable:hover .about-value {
+  color: #d9ccff;
+}
+
+.tl-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(235, 238, 250, 0.45);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.tl-badge--on {
+  border-color: rgba(255, 176, 90, 0.4);
+  background: rgba(255, 176, 90, 0.12);
+  color: #ffc07a;
+}
+
+.telemetry-details-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 18px;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.16);
+  color: rgba(235, 238, 250, 0.5);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    color 160ms,
+    background 160ms;
+}
+
+.telemetry-details-btn:hover {
+  color: #d9ccff;
+  background: rgba(0, 0, 0, 0.26);
+}
+
+.telemetry-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 14px 18px;
+}
+
+.tm-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: rgba(235, 238, 250, 0.62);
+}
+
+.tm-list--never {
+  color: rgba(235, 238, 250, 0.38);
+}
+
+.tm-payload {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(206, 190, 255, 0.75);
+  font-size: 10.5px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.tm-note {
+  font-size: 10.5px;
+}
 .setting-row {
   display: flex;
   align-items: center;
@@ -1796,15 +3065,30 @@ async function reset() {
   gap: 16px;
   padding: 15px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  /* offscreen rows skip layout/paint entirely — big lists stay smooth */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 54px;
 }
 
-.setting-row:last-child { border-bottom: none; }
-.setting-row--danger { background: rgba(255, 108, 120, 0.045); }
-.setting-row--flash { animation: settingFlash 1.8s ease; }
+.setting-row:last-child {
+  border-bottom: none;
+}
+.setting-row--danger {
+  background: rgba(255, 108, 120, 0.045);
+}
+.setting-row--flash {
+  animation: settingFlash 1.8s ease;
+}
 
 @keyframes settingFlash {
-  0%, 100% { background: transparent; }
-  20%, 60% { background: rgba(167, 139, 250, 0.14); }
+  0%,
+  100% {
+    background: transparent;
+  }
+  20%,
+  60% {
+    background: rgba(167, 139, 250, 0.14);
+  }
 }
 
 .nested-setting-row {
@@ -1817,17 +3101,50 @@ async function reset() {
   background: rgba(0, 0, 0, 0.14);
 }
 
-.nested-reveal-enter-active { transition: all 220ms ease; }
-.nested-reveal-leave-active { transition: all 150ms ease; }
-.nested-reveal-enter-from, .nested-reveal-leave-to { opacity: 0; transform: translateY(-6px); }
+.nested-reveal-enter-active {
+  transition: all 220ms ease;
+}
+.nested-reveal-leave-active {
+  transition: all 150ms ease;
+}
+.nested-reveal-enter-from,
+.nested-reveal-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
 
-.row-left { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
-.row-icon { color: rgba(235, 238, 250, 0.55); flex-shrink: 0; margin-top: 2px; }
-.row-icon--danger { color: #ff8a92; }
-.row-icon--nested { color: rgba(235, 238, 250, 0.4); }
-.row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.row-title { font-size: 13px; font-weight: 500; }
-.row-desc { font-size: 11.5px; line-height: 1.45; color: rgba(235, 238, 250, 0.45); }
+.row-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.row-icon {
+  color: rgba(235, 238, 250, 0.55);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.row-icon--danger {
+  color: #ff8a92;
+}
+.row-icon--nested {
+  color: rgba(235, 238, 250, 0.4);
+}
+.row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.row-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+.row-desc {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: rgba(235, 238, 250, 0.45);
+}
 .row-select {
   flex-shrink: 0;
   min-width: 132px;
@@ -1840,11 +3157,205 @@ async function reset() {
   font-family: inherit;
   outline: none;
   cursor: pointer;
-  transition: border-color 0.16s ease, background 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
-.row-select:hover { background: rgba(255, 255, 255, 0.07); }
-.row-select:focus-visible { border-color: rgba(167, 139, 250, 0.55); }
-.row-select option { background: #14161f; color: rgba(235, 238, 250, 0.9); }
+.row-select:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.row-select:focus-visible {
+  border-color: rgba(167, 139, 250, 0.55);
+}
+.row-select option {
+  background: #14161f;
+  color: rgba(235, 238, 250, 0.9);
+}
+
+.autooff-modes {
+  display: flex;
+  flex-shrink: 0;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.autooff-mode-btn {
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: rgba(235, 238, 250, 0.48);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 150ms,
+    background 150ms;
+}
+
+.autooff-mode-btn:hover {
+  color: rgba(235, 238, 250, 0.85);
+}
+
+.autooff-mode-btn--active {
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.autooff-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 18px 12px 46px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.autooff-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.autooff-preset {
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(235, 238, 250, 0.62);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    color 150ms,
+    background 150ms,
+    border-color 150ms;
+}
+
+.autooff-preset:hover,
+.autooff-preset--active {
+  color: #e6dcff;
+  border-color: rgba(167, 139, 250, 0.35);
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.autooff-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.autooff-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.autooff-input:focus {
+  border-color: rgba(167, 139, 250, 0.5);
+}
+
+.autooff-app-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.autooff-apply,
+.autooff-refresh,
+.autooff-cancel {
+  flex-shrink: 0;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(235, 238, 250, 0.78);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 150ms,
+    background 150ms,
+    border-color 150ms;
+}
+
+.autooff-apply {
+  padding: 0 13px;
+  border-color: rgba(167, 139, 250, 0.3);
+  background: rgba(167, 139, 250, 0.12);
+  color: #e6dcff;
+}
+
+.autooff-refresh {
+  display: grid;
+  place-items: center;
+  width: 32px;
+}
+
+.autooff-apply:hover,
+.autooff-refresh:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.autooff-apply:disabled,
+.autooff-refresh:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.autooff-active {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px 9px 46px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(94, 230, 154, 0.045);
+}
+
+.autooff-active-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5ee69a;
+  box-shadow: 0 0 10px rgba(94, 230, 154, 0.55);
+}
+
+.autooff-active-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: rgba(235, 238, 250, 0.7);
+}
+
+.autooff-cancel {
+  height: 27px;
+  padding: 0 9px;
+  color: #ff9da5;
+  border-color: rgba(255, 138, 146, 0.22);
+  background: rgba(255, 138, 146, 0.06);
+}
+
+.autooff-cancel:hover {
+  background: rgba(255, 138, 146, 0.12);
+}
 
 .toggle {
   position: relative;
@@ -1856,10 +3367,15 @@ async function reset() {
   cursor: pointer;
   flex-shrink: 0;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: background 220ms, border-color 220ms;
+  transition:
+    background 220ms,
+    border-color 220ms;
 }
 
-.toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+.toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .toggle--on {
   background: linear-gradient(180deg, rgba(167, 139, 250, 0.85), rgba(124, 92, 255, 0.75));
@@ -1883,7 +3399,9 @@ async function reset() {
   transition: transform 260ms cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
-.toggle-thumb--on { transform: translateX(20px); }
+.toggle-thumb--on {
+  transform: translateX(20px);
+}
 
 .pill-switch {
   display: flex;
@@ -1895,7 +3413,26 @@ async function reset() {
   flex-shrink: 0;
 }
 
+.pill-group {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pill-group .pill-btn {
+  min-width: 92px;
+  justify-content: center;
+  text-align: center;
+}
+
+.row-title,
+.row-desc {
+  overflow-wrap: anywhere;
+}
+
 .pill-btn {
+  display: inline-flex;
+  align-items: center;
   height: 26px;
   padding: 0 12px;
   border-radius: 999px;
@@ -1906,7 +3443,9 @@ async function reset() {
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 180ms, color 180ms;
+  transition:
+    background 180ms,
+    color 180ms;
 }
 
 .pill-btn--active {
@@ -1915,8 +3454,239 @@ async function reset() {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.split-card { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
-.split-desc { font-size: 12px; line-height: 1.5; color: rgba(235, 238, 250, 0.5); }
+.split-card {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.split-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(235, 238, 250, 0.5);
+}
+
+/* ---------- selector groups ---------- */
+
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sg-help {
+  margin: -2px 0 0;
+}
+
+.sg-help-flow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  background: rgba(124, 92, 255, 0.08);
+  font-size: 10px;
+  color: rgba(206, 190, 255, 0.85);
+}
+
+.sg-help-flow > span {
+  white-space: nowrap;
+}
+
+.sg-help-arrow {
+  color: rgba(235, 238, 250, 0.35);
+}
+
+.sg-help-node {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--success) 40%, transparent);
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+  color: var(--success);
+}
+
+.dns-block .block-head {
+  margin-bottom: 4px;
+}
+
+.sg-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  background: linear-gradient(180deg, rgba(124, 92, 255, 0.09), rgba(124, 92, 255, 0.03));
+}
+
+.sg-sub {
+  margin: -4px 0 0;
+}
+
+.sg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 200ms ease,
+    color 200ms ease,
+    background 220ms ease,
+    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sg-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--foreground);
+}
+
+.sg-chip--on {
+  border-color: color-mix(in oklab, var(--success) 45%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--success) 16%, transparent),
+    color-mix(in oklab, var(--success) 5%, transparent)
+  );
+  color: var(--success);
+}
+
+.sg-chip--missing {
+  opacity: 0.55;
+}
+
+.sg-chip-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sg-chip-target {
+  font-size: 10px;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+.sg-empty {
+  margin: 2px 0 0;
+}
+
+.sg-rows {
+  margin: 0;
+}
+
+.sg-row {
+  gap: 8px;
+}
+
+.sg-row-server {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 10.5px;
+  color: rgba(235, 238, 250, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sg-name-input {
+  width: 150px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--foreground);
+  font-size: 11.5px;
+  outline: none;
+}
+
+.sg-select {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+}
+
+.sg-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- DNS center ---------- */
+
+.dns-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 -18px;
+  padding: 14px 18px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.dns-block > .split-mode-title {
+  margin-bottom: 6px;
+}
+
+.dns-row {
+  border-bottom: none;
+  padding: 9px 0;
+}
+
+.dns-seg {
+  flex-shrink: 0;
+}
+
+.dns-pill-btn {
+  padding: 0 11px;
+}
+
+.dns-custom-input {
+  width: 240px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--foreground);
+  font-size: 11px;
+  outline: none;
+  transition: border-color 160ms ease;
+}
+
+.dns-custom-input:focus {
+  border-color: rgba(167, 139, 250, 0.55);
+}
+
+.dns-apply-hint {
+  margin: 2px 0 10px;
+  font-size: 11px;
+  color: #ffc07a;
+}
 
 .split-tabs {
   display: flex;
@@ -1942,7 +3712,9 @@ async function reset() {
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 180ms, color 180ms;
+  transition:
+    background 180ms,
+    color 180ms;
 }
 
 .split-tab--active {
@@ -1951,9 +3723,16 @@ async function reset() {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.split-panel { display: flex; flex-direction: column; gap: 10px; }
+.split-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
-.add-app-row { display: flex; gap: 6px; }
+.add-app-row {
+  display: flex;
+  gap: 6px;
+}
 
 .app-input {
   flex: 1;
@@ -1968,8 +3747,12 @@ async function reset() {
   transition: border-color 160ms;
 }
 
-.app-input:focus { border-color: rgba(167, 139, 250, 0.5); }
-.app-input::placeholder { color: rgba(235, 238, 250, 0.3); }
+.app-input:focus {
+  border-color: rgba(167, 139, 250, 0.5);
+}
+.app-input::placeholder {
+  color: rgba(235, 238, 250, 0.3);
+}
 
 .app-browse-btn {
   display: flex;
@@ -1981,10 +3764,15 @@ async function reset() {
   background: rgba(255, 255, 255, 0.06);
   color: rgba(235, 238, 250, 0.6);
   cursor: pointer;
-  transition: background 160ms, color 160ms;
+  transition:
+    background 160ms,
+    color 160ms;
 }
 
-.app-browse-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.app-browse-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
 
 .app-add-btn {
   padding: 0 16px;
@@ -1999,7 +3787,10 @@ async function reset() {
   transition: opacity 160ms;
 }
 
-.app-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.app-add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .process-search {
   display: flex;
@@ -2012,7 +3803,10 @@ async function reset() {
   background: rgba(0, 0, 0, 0.18);
 }
 
-.proc-search-icon { color: rgba(235, 238, 250, 0.4); flex-shrink: 0; }
+.proc-search-icon {
+  color: rgba(235, 238, 250, 0.4);
+  flex-shrink: 0;
+}
 
 .proc-search-input {
   flex: 1;
@@ -2024,7 +3818,9 @@ async function reset() {
   font-family: var(--font-sans);
 }
 
-.proc-search-input::placeholder { color: rgba(235, 238, 250, 0.3); }
+.proc-search-input::placeholder {
+  color: rgba(235, 238, 250, 0.3);
+}
 
 .proc-refresh-btn {
   display: flex;
@@ -2040,8 +3836,13 @@ async function reset() {
   transition: color 160ms;
 }
 
-.proc-refresh-btn:hover:not(:disabled) { color: #fff; }
-.proc-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.proc-refresh-btn:hover:not(:disabled) {
+  color: #fff;
+}
+.proc-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .proc-list-wrap {
   max-height: 240px;
@@ -2051,8 +3852,15 @@ async function reset() {
   background: rgba(0, 0, 0, 0.14);
 }
 
-.proc-hint { padding: 20px; text-align: center; font-size: 12px; color: rgba(235, 238, 250, 0.4); }
-.proc-list { list-style: none; }
+.proc-hint {
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(235, 238, 250, 0.4);
+}
+.proc-list {
+  list-style: none;
+}
 
 .proc-row {
   display: flex;
@@ -2063,15 +3871,38 @@ async function reset() {
   cursor: pointer;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   transition: background 140ms;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 41px;
 }
 
-.proc-row:last-child { border-bottom: none; }
-.proc-row:hover { background: rgba(255, 255, 255, 0.05); }
-.proc-row--added { background: rgba(167, 139, 250, 0.08); }
+.proc-row:last-child {
+  border-bottom: none;
+}
+.proc-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.proc-row--added {
+  background: rgba(167, 139, 250, 0.08);
+}
 
-.proc-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
-.proc-name { font-size: 12px; font-weight: 500; }
-.proc-path { font-size: 10px; color: rgba(235, 238, 250, 0.35); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.proc-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+.proc-path {
+  font-size: 10px;
+  color: rgba(235, 238, 250, 0.35);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .proc-check {
   display: flex;
@@ -2092,8 +3923,16 @@ async function reset() {
   color: #5ee69a;
 }
 
-.games-scan-row { display: flex; flex-direction: column; gap: 10px; }
-.games-scan-desc { font-size: 11.5px; line-height: 1.5; color: rgba(235, 238, 250, 0.45); }
+.games-scan-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.games-scan-desc {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: rgba(235, 238, 250, 0.45);
+}
 
 .games-scan-btn {
   display: flex;
@@ -2112,9 +3951,16 @@ async function reset() {
   transition: opacity 160ms;
 }
 
-.games-scan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.games-scan-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-.games-results { display: flex; flex-direction: column; gap: 10px; }
+.games-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
 .games-list {
   list-style: none;
@@ -2133,11 +3979,19 @@ async function reset() {
   cursor: pointer;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   transition: background 140ms;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 43px;
 }
 
-.game-row:last-child { border-bottom: none; }
-.game-row:hover { background: rgba(255, 255, 255, 0.05); }
-.game-row--selected { background: rgba(167, 139, 250, 0.08); }
+.game-row:last-child {
+  border-bottom: none;
+}
+.game-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.game-row--selected {
+  background: rgba(167, 139, 250, 0.08);
+}
 
 .game-check {
   display: flex;
@@ -2158,9 +4012,20 @@ async function reset() {
   color: #fff;
 }
 
-.game-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.game-name { font-size: 12px; font-weight: 500; }
-.game-count { font-size: 10px; color: rgba(235, 238, 250, 0.35); }
+.game-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.game-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+.game-count {
+  font-size: 10px;
+  color: rgba(235, 238, 250, 0.35);
+}
 
 .games-add-btn {
   padding: 10px 0;
@@ -2171,13 +4036,24 @@ async function reset() {
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 160ms, background 160ms;
+  transition:
+    opacity 160ms,
+    background 160ms;
 }
 
-.games-add-btn:hover:not(:disabled) { background: rgba(94, 230, 154, 0.18); }
-.games-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.games-add-btn:hover:not(:disabled) {
+  background: rgba(94, 230, 154, 0.18);
+}
+.games-add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
-.bypass-list-wrap { display: flex; flex-direction: column; gap: 6px; }
+.bypass-list-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .bypass-list-title {
   font-size: 10.5px;
@@ -2205,9 +4081,23 @@ async function reset() {
   font-size: 11px;
 }
 
-.bypass-icon-wrap { display: flex; color: rgba(235, 238, 250, 0.4); flex-shrink: 0; }
-.bypass-path { font-weight: 500; flex-shrink: 0; }
-.bypass-full-path { flex: 1; color: rgba(235, 238, 250, 0.3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.bypass-icon-wrap {
+  display: flex;
+  color: rgba(235, 238, 250, 0.4);
+  flex-shrink: 0;
+}
+.bypass-path {
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.bypass-full-path {
+  flex: 1;
+  color: rgba(235, 238, 250, 0.3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
 
 .bypass-remove {
   display: flex;
@@ -2221,14 +4111,28 @@ async function reset() {
   color: rgba(235, 238, 250, 0.4);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color 140ms, background 140ms;
+  transition:
+    color 140ms,
+    background 140ms;
 }
 
-.bypass-remove:hover { color: #ff8a92; background: rgba(255, 138, 146, 0.1); }
+.bypass-remove:hover {
+  color: #ff8a92;
+  background: rgba(255, 138, 146, 0.1);
+}
 
-.split-empty { font-size: 11.5px; color: rgba(235, 238, 250, 0.35); text-align: center; padding: 4px 0; }
+.split-empty {
+  font-size: 11.5px;
+  color: rgba(235, 238, 250, 0.35);
+  text-align: center;
+  padding: 4px 0;
+}
 
-.split-mode-block { display: flex; flex-direction: column; gap: 8px; }
+.split-mode-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 .mode-pill {
   display: grid;
@@ -2250,10 +4154,14 @@ async function reset() {
   background: transparent;
   color: rgba(235, 238, 250, 0.45);
   cursor: pointer;
-  transition: background 180ms, color 180ms;
+  transition:
+    background 180ms,
+    color 180ms;
 }
 
-.mode-pill-btn:hover { color: rgba(235, 238, 250, 0.8); }
+.mode-pill-btn:hover {
+  color: rgba(235, 238, 250, 0.8);
+}
 
 .mode-pill-btn--active {
   background: rgba(167, 139, 250, 0.22);
@@ -2268,8 +4176,16 @@ async function reset() {
   padding: 0 2px;
 }
 
-.mode-explain-name { font-size: 12.5px; font-weight: 500; color: #eef1fb; }
-.mode-explain-desc { font-size: 11px; line-height: 1.5; color: rgba(235, 238, 250, 0.45); }
+.mode-explain-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #eef1fb;
+}
+.mode-explain-desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(235, 238, 250, 0.45);
+}
 
 .apply-bar {
   display: flex;
@@ -2281,7 +4197,12 @@ async function reset() {
   background: rgba(255, 193, 112, 0.09);
 }
 
-.apply-text { flex: 1; font-size: 11px; line-height: 1.45; color: rgba(255, 214, 160, 0.9); }
+.apply-text {
+  flex: 1;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(255, 214, 160, 0.9);
+}
 
 .apply-btn {
   display: flex;
@@ -2299,7 +4220,10 @@ async function reset() {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
-.apply-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.apply-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .smart-box {
   display: flex;
@@ -2311,8 +4235,17 @@ async function reset() {
   background: rgba(0, 0, 0, 0.14);
 }
 
-.smart-head { display: flex; align-items: center; gap: 10px; }
-.smart-desc { flex: 1; font-size: 11px; line-height: 1.5; color: rgba(235, 238, 250, 0.45); }
+.smart-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.smart-desc {
+  flex: 1;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(235, 238, 250, 0.45);
+}
 
 .smart-btn {
   display: flex;
@@ -2330,7 +4263,10 @@ async function reset() {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
-.smart-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.smart-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .verdict-dot {
   width: 7px;
@@ -2339,8 +4275,14 @@ async function reset() {
   flex-shrink: 0;
 }
 
-.verdict-dot--blocked { background: #ff8a92; box-shadow: 0 0 7px rgba(255, 138, 146, 0.6); }
-.verdict-dot--ok { background: #6ee7a8; box-shadow: 0 0 7px rgba(110, 231, 168, 0.5); }
+.verdict-dot--blocked {
+  background: #ff8a92;
+  box-shadow: 0 0 7px rgba(255, 138, 146, 0.6);
+}
+.verdict-dot--ok {
+  background: #6ee7a8;
+  box-shadow: 0 0 7px rgba(110, 231, 168, 0.5);
+}
 
 .verdict-tag {
   flex-shrink: 0;
@@ -2351,7 +4293,11 @@ async function reset() {
   letter-spacing: 0.04em;
 }
 
-.split-templates { display: flex; flex-direction: column; gap: 6px; }
+.split-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .split-mode-title {
   font-size: 10.5px;
@@ -2361,7 +4307,10 @@ async function reset() {
   color: rgba(235, 238, 250, 0.4);
 }
 
-.tpl-row-wrap { display: flex; flex-direction: column; }
+.tpl-row-wrap {
+  display: flex;
+  flex-direction: column;
+}
 
 .tpl-row {
   display: flex;
@@ -2371,10 +4320,15 @@ async function reset() {
   border-radius: 11px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   background: rgba(0, 0, 0, 0.14);
-  transition: border-color 160ms, background 160ms;
+  transition:
+    border-color 160ms,
+    background 160ms;
 }
 
-.tpl-row--on { border-color: rgba(167, 139, 250, 0.4); background: rgba(167, 139, 250, 0.09); }
+.tpl-row--on {
+  border-color: rgba(167, 139, 250, 0.4);
+  background: rgba(167, 139, 250, 0.09);
+}
 
 .tpl-check {
   display: flex;
@@ -2397,7 +4351,12 @@ async function reset() {
   color: #fff;
 }
 
-.tpl-label { flex: 1; font-size: 12px; color: #eef1fb; cursor: pointer; }
+.tpl-label {
+  flex: 1;
+  font-size: 12px;
+  color: #eef1fb;
+  cursor: pointer;
+}
 
 .tpl-help {
   display: flex;
@@ -2411,11 +4370,19 @@ async function reset() {
   color: rgba(235, 238, 250, 0.35);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color 140ms, background 140ms;
+  transition:
+    color 140ms,
+    background 140ms;
 }
 
-.tpl-help:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
-.tpl-help--on { color: rgb(196, 181, 253); background: rgba(167, 139, 250, 0.16); }
+.tpl-help:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.tpl-help--on {
+  color: rgb(196, 181, 253);
+  background: rgba(167, 139, 250, 0.16);
+}
 
 .tpl-detail {
   display: flex;
@@ -2428,7 +4395,11 @@ async function reset() {
   background: rgba(0, 0, 0, 0.22);
 }
 
-.tpl-detail-text { font-size: 11px; line-height: 1.55; color: rgba(235, 238, 250, 0.6); }
+.tpl-detail-text {
+  font-size: 11px;
+  line-height: 1.55;
+  color: rgba(235, 238, 250, 0.6);
+}
 
 .tpl-detail-count {
   font-size: 9.5px;
@@ -2472,7 +4443,10 @@ async function reset() {
   background: rgba(0, 0, 0, 0.14);
 }
 
-.rule-icon { color: rgba(235, 238, 250, 0.4); flex-shrink: 0; }
+.rule-icon {
+  color: rgba(235, 238, 250, 0.4);
+  flex-shrink: 0;
+}
 
 .rule-value {
   flex: 1;
@@ -2483,7 +4457,10 @@ async function reset() {
   white-space: nowrap;
 }
 
-.games-bulk-row { display: flex; gap: 6px; }
+.games-bulk-row {
+  display: flex;
+  gap: 6px;
+}
 
 .games-bulk-btn {
   padding: 6px 12px;
@@ -2494,10 +4471,15 @@ async function reset() {
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 160ms, color 160ms;
+  transition:
+    background 160ms,
+    color 160ms;
 }
 
-.games-bulk-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.games-bulk-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
 
 .game-launcher {
   display: inline-block;
@@ -2531,8 +4513,14 @@ async function reset() {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.about-label { font-size: 12.5px; color: rgba(235, 238, 250, 0.55); }
-.about-value { font-size: 12px; color: rgba(235, 238, 250, 0.75); }
+.about-label {
+  font-size: 12.5px;
+  color: rgba(235, 238, 250, 0.55);
+}
+.about-value {
+  font-size: 12px;
+  color: rgba(235, 238, 250, 0.75);
+}
 
 .repair-btn {
   display: flex;
@@ -2548,11 +4536,18 @@ async function reset() {
   font-weight: 500;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 160ms, opacity 160ms;
+  transition:
+    background 160ms,
+    opacity 160ms;
 }
 
-.repair-btn:hover:not(:disabled) { background: rgba(255, 138, 146, 0.16); }
-.repair-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.repair-btn:hover:not(:disabled) {
+  background: rgba(255, 138, 146, 0.16);
+}
+.repair-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .reset-btn {
   display: flex;
@@ -2563,18 +4558,32 @@ async function reset() {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(10px);
   color: rgba(235, 238, 250, 0.6);
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: color 160ms, background 160ms;
+  transition:
+    color 160ms,
+    background 160ms;
 }
 
-.reset-btn:hover { color: #ff8a92; background: rgba(255, 138, 146, 0.06); }
+.reset-btn:hover {
+  color: #ff8a92;
+  background: rgba(255, 138, 146, 0.06);
+}
 
-.spin { animation: rotate 0.8s linear infinite; }
-@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spin {
+  animation: rotate 0.8s linear infinite;
+}
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .hotkey-btn {
   min-width: 132px;
@@ -2587,10 +4596,15 @@ async function reset() {
   cursor: pointer;
   flex-shrink: 0;
   text-align: center;
-  transition: border-color 160ms, background 160ms, color 160ms;
+  transition:
+    border-color 160ms,
+    background 160ms,
+    color 160ms;
 }
 
-.hotkey-btn:hover { border-color: rgba(255, 255, 255, 0.22); }
+.hotkey-btn:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
 
 .hotkey-btn--recording {
   border-color: rgba(167, 139, 250, 0.65);
@@ -2600,7 +4614,9 @@ async function reset() {
 }
 
 @keyframes hotkeyPulse {
-  50% { border-color: rgba(167, 139, 250, 0.25); }
+  50% {
+    border-color: rgba(167, 139, 250, 0.25);
+  }
 }
 
 .rpc-sub {
@@ -2620,9 +4636,17 @@ async function reset() {
   overflow: hidden;
 }
 .rpc-fold-enter-from,
-.rpc-fold-leave-to { max-height: 0; opacity: 0; transform: translateY(-10px); }
+.rpc-fold-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+}
 .rpc-fold-enter-to,
-.rpc-fold-leave-from { max-height: 240px; opacity: 1; transform: translateY(0); }
+.rpc-fold-leave-from {
+  max-height: 240px;
+  opacity: 1;
+  transform: translateY(0);
+}
 .proc-ico {
   width: 26px;
   height: 26px;
@@ -2635,9 +4659,136 @@ async function reset() {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.proc-ico img { width: 100%; height: 100%; object-fit: cover; }
-.proc-ico-letter { font-size: 12px; font-weight: 700; color: rgba(235, 238, 250, 0.55); }
+.proc-ico img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.proc-ico-letter {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(235, 238, 250, 0.55);
+}
 
-.bypass-icon-wrap img { width: 16px; height: 16px; border-radius: 4px; object-fit: cover; }
+.bypass-icon-wrap img {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.chain-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin: 2px 0 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.chain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chain-cal {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(167, 139, 250, 0.14);
+  color: #e6dcff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chain-cal:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.chain-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: rgba(235, 238, 250, 0.55);
+}
+
+.chain-retry input {
+  width: 54px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.chain-empty {
+  margin: 0;
+  font-size: 11.5px;
+  color: rgba(235, 238, 250, 0.45);
+}
+
+.chain-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chain-idx {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #a78bfa;
+  flex-shrink: 0;
+}
+
+.chain-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chain-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: rgba(235, 238, 250, 0.6);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chain-btn:hover {
+  color: #e6dcff;
+  border-color: rgba(167, 139, 250, 0.5);
+}
+
+.chain-btn--kill:hover {
+  color: #ff8a92;
+  border-color: rgba(255, 138, 146, 0.5);
+}
 </style>
-
