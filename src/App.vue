@@ -12,6 +12,8 @@ import { useRouter } from 'vue-router';
 import AppShell from './components/Layout.vue';
 import Onboarding from './components/Onboarding.vue';
 import { useVpnStore } from './stores/vpn';
+import { gsap } from 'gsap';
+import { warmUpMotion } from './lib/motion';
 
 const store = useVpnStore();
 const router = useRouter();
@@ -20,6 +22,26 @@ provide('onboardingOpen', showOnboarding);
 const MIN_SPLASH_VISIBLE_MS = 400;
 const MAX_BOOT_WAIT_MS = 12000;
 const mountedAt = Date.now();
+
+/* global micro press feedback on buttons (delegated, cheap, respects reduced-motion) */
+let reducedMotion = false;
+let pressHandler: ((e: MouseEvent) => void) | null = null;
+
+function bindPressFeedback() {
+  reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reducedMotion) return;
+  pressHandler = (e: MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    const btn = target?.closest('button') as HTMLElement | null;
+    if (!btn || btn.disabled) return;
+    gsap.killTweensOf(btn);
+    gsap
+      .timeline()
+      .to(btn, { scale: 0.965, duration: 0.07, ease: 'power2.out' })
+      .to(btn, { scale: 1, duration: 0.32, ease: 'back.out(2.2)' });
+  };
+  window.addEventListener('pointerdown', pressHandler, { passive: true });
+}
 
 function withHardTimeout<T>(promise: Promise<T>, ms: number): Promise<T | void> {
   return new Promise((resolve) => {
@@ -58,6 +80,8 @@ async function completeOnboarding(payload: { goToServers: boolean }) {
 }
 
 onMounted(async () => {
+  bindPressFeedback();
+  warmUpMotion();
   const launchedHidden = await invoke<boolean>('is_launched_hidden').catch(() => false);
 
   await withHardTimeout(store.boot(), MAX_BOOT_WAIT_MS);
@@ -81,7 +105,13 @@ onMounted(async () => {
   }, remaining);
 });
 
-onUnmounted(() => store.stopPolling());
+onUnmounted(() => {
+  store.stopPolling();
+  if (pressHandler) {
+    window.removeEventListener('pointerdown', pressHandler);
+    pressHandler = null;
+  }
+});
 </script>
 
 <style>
