@@ -82,7 +82,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
-import { Check, Maximize2, RotateCw, Wrench } from 'lucide-vue-next';
+import { Check, Maximize2, RotateCw, Wrench } from './lib/appIcons';
 import { invoke } from '@tauri-apps/api/tauri';
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { appWindow } from '@tauri-apps/api/window';
@@ -161,7 +161,11 @@ let timer: ReturnType<typeof setInterval> | null = null;
 onMounted(async () => {
   reload();
   unlisten = await listen('tray-popup-shown', reload);
-  timer = setInterval(() => { vpnStore.refreshStatus().catch(() => {}); }, 2000);
+  timer = setInterval(() => {
+    // hidden tray window must not burn CPU on status polling
+    if (document.hidden) return;
+    vpnStore.refreshStatus().catch(() => {});
+  }, 2000);
   window.addEventListener('keydown', onKey);
 });
 
@@ -196,7 +200,7 @@ onUnmounted(() => {
   font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(30px) saturate(1.25);
+  backdrop-filter: blur(16px);
   user-select: none;
 }
 
