@@ -1,6 +1,7 @@
 [package]
 name = "wawity-core"
 version = "0.2.0"
+license = "MIT"
 description = "Wawity VPN engine: config parsing/generation, sing-box supervision, firewall lockdown"
 edition = "2021"
 

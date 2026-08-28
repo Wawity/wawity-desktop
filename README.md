@@ -191,7 +191,7 @@ The UI ships with English (`src/i18n/en.ts`) and Russian (`src/i18n/ru.ts`) tran
 
 ## License
 
-No license file is currently included in this repository. Until one is added, all rights are reserved by the project author(s); please contact the maintainer before reusing, redistributing, or building on this code.
+Wawity is released under the [MIT License](./LICENSE). You are free to use, copy, modify, merge, publish, distribute, sublicense, and sell copies of the software, provided the copyright notice and permission notice are included in all copies or substantial portions of it.
 
 ## Disclaimer
 

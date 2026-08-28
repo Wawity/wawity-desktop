@@ -2,6 +2,7 @@
   "name": "wawity",
   "version": "0.2.0",
   "description": "Wawity VPN Client",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
