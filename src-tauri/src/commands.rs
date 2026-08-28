@@ -2,6 +2,7 @@
 
 pub use wawity_core::engine::*;
 use crate::config::{parse_all_from_subscription, parse_subscription, ConfigGenerator};
+use wawity_core::engine::SelectorOptions;
 use crate::error::VpnError;
 use crate::network::{RoutingManager, TunManager};
 use crate::process::ProcessManager;
@@ -13,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use reqwest::blocking::Client;
 use base64::{Engine as _, engine::general_purpose};
 
@@ -31,6 +32,43 @@ pub async fn fetch_subscription(url: String) -> Result<Vec<ParsedServer>, String
         }
         Ok(proxies)
     }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn fetch_rule_list(url: String) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let fetched = fetch_with_fallback(&url)?;
+        let mut out: Vec<String> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for line in fetched.body.lines() {
+            let mut entry = line.trim();
+            if let Some(idx) = entry.find('#') {
+                entry = entry[..idx].trim();
+            }
+            if entry.is_empty() || entry.starts_with('!') {
+                continue;
+            }
+            let cleaned = entry
+                .trim_start_matches("||")
+                .trim_start_matches("*.")
+                .trim_start_matches('.')
+                .trim_end_matches('^')
+                .trim()
+                .to_ascii_lowercase();
+            if cleaned.is_empty() {
+                continue;
+            }
+            if seen.insert(cleaned.clone()) {
+                out.push(cleaned);
+            }
+        }
+        if out.is_empty() {
+            return Err("No usable entries in the provided list".to_string());
+        }
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -502,6 +540,7 @@ pub fn get_subscription_info(url: String) -> Result<SubscriptionInfo, String> {
     }
     let resp = GLOBAL_CLIENT
         .get(trimmed)
+        .headers(extra_header_map())
         .send()
         .map_err(|e| format!("subscription request failed: {}", e))?;
     let header_raw = resp
@@ -590,4 +629,67 @@ pub fn finish_first_launch() -> Result<(), String> {
         std::fs::create_dir_all(parent).map_err(|e| format!("cannot prepare flag directory: {}", e))?;
     }
     std::fs::write(&marker, b"ok").map_err(|e| format!("cannot write first launch flag: {}", e))
+}
+
+
+static SPEED_HALT: Lazy<Arc<std::sync::atomic::AtomicBool>> =
+    Lazy::new(|| Arc::new(std::sync::atomic::AtomicBool::new(false)));
+static SPEED_BUSY: Lazy<Arc<std::sync::atomic::AtomicBool>> =
+    Lazy::new(|| Arc::new(std::sync::atomic::AtomicBool::new(false)));
+
+#[tauri::command]
+pub async fn run_speed_test(app: AppHandle) -> Result<wawity_core::netprobe::SpeedResult, String> {
+    use std::sync::atomic::Ordering;
+
+    if SPEED_BUSY.swap(true, Ordering::SeqCst) {
+        return Err("speed test is already running".to_string());
+    }
+    SPEED_HALT.store(false, Ordering::SeqCst);
+
+    let halt = Arc::clone(&SPEED_HALT);
+    let outcome = tokio::task::spawn_blocking(move || {
+        wawity_core::netprobe::run_speed_test(halt, |tick| {
+            let _ = app.emit_all("wawity-speed-tick", tick);
+        })
+    })
+    .await;
+
+    SPEED_BUSY.store(false, Ordering::SeqCst);
+    SPEED_HALT.store(false, Ordering::SeqCst);
+
+    outcome.map_err(|e| format!("Speed test worker failed: {}", e))
+}
+
+#[tauri::command]
+pub async fn cancel_speed_test() -> Result<(), String> {
+    SPEED_HALT.store(true, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn audit_leaks() -> Result<wawity_core::netprobe::LeakAudit, String> {
+    tokio::task::spawn_blocking(wawity_core::netprobe::audit_leaks)
+        .await
+        .map_err(|e| format!("Leak audit worker failed: {}", e))
+}
+
+#[tauri::command]
+pub async fn probe_reachability(
+    targets: Option<Vec<(String, String, String)>>,
+) -> Result<Vec<wawity_core::blockcheck::BlockReport>, String> {
+    tokio::task::spawn_blocking(move || match targets {
+        Some(list) if !list.is_empty() => wawity_core::blockcheck::probe_tagged(list),
+        _ => wawity_core::blockcheck::probe_defaults(),
+    })
+    .await
+    .map_err(|e| format!("Reachability worker failed: {}", e))
+}
+
+#[tauri::command]
+pub async fn probe_servers_deep(
+    targets: Vec<wawity_core::smartpick::DeepTarget>,
+) -> Result<Vec<wawity_core::smartpick::DeepSample>, String> {
+    tokio::task::spawn_blocking(move || wawity_core::smartpick::deep_probe(targets))
+        .await
+        .map_err(|e| format!("Deep probe worker failed: {}", e))
 }
