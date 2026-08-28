@@ -8,6 +8,51 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 use zeroize::Zeroize;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DpiProfile {
+    Off,
+    Soft,
+    Medium,
+    Hard,
+}
+
+impl DpiProfile {
+    pub fn parse(raw: &str) -> Self {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "soft" | "light" | "low" => DpiProfile::Soft,
+            "medium" | "mid" | "balanced" => DpiProfile::Medium,
+            "hard" | "strong" | "max" | "aggressive" => DpiProfile::Hard,
+            _ => DpiProfile::Off,
+        }
+    }
+
+    pub fn mux_streams(self) -> (u64, u64) {
+        match self {
+            DpiProfile::Off => (4, 4),
+            DpiProfile::Soft => (4, 6),
+            DpiProfile::Medium => (6, 8),
+            DpiProfile::Hard => (8, 12),
+        }
+    }
+
+    pub fn packet_fragment(self) -> bool {
+        !matches!(self, DpiProfile::Off)
+    }
+
+    pub fn record_fragment(self) -> bool {
+        matches!(self, DpiProfile::Medium | DpiProfile::Hard)
+    }
+
+    pub fn fallback_delay(self) -> &'static str {
+        match self {
+            DpiProfile::Soft => "300ms",
+            DpiProfile::Medium => "500ms",
+            DpiProfile::Hard => "800ms",
+            DpiProfile::Off => "",
+        }
+    }
+}
+
 pub struct ConfigGenerator {
     pub kill_switch: bool,
     pub block_ads: bool,
@@ -26,6 +71,7 @@ pub struct ConfigGenerator {
     pub bootstrap_ip: String,
     pub bootstrap_ip_alt: String,
     pub system_dns: Option<String>,
+    pub dpi_profile: DpiProfile,
 }
 
 impl ConfigGenerator {
@@ -55,6 +101,7 @@ impl ConfigGenerator {
             bootstrap_ip: "1.1.1.1".to_string(),
             bootstrap_ip_alt: "1.0.0.1".to_string(),
             system_dns: None,
+            dpi_profile: DpiProfile::Off,
         }
     }
 
@@ -84,6 +131,11 @@ impl ConfigGenerator {
 
     pub fn with_padding(mut self, enabled: bool) -> Self {
         self.enable_padding = enabled;
+        self
+    }
+
+    pub fn with_dpi(mut self, raw: &str) -> Self {
+        self.dpi_profile = DpiProfile::parse(raw);
         self
     }
 
@@ -171,7 +223,7 @@ impl ConfigGenerator {
                 self.build_mixed_inbound()
             ],
             "outbounds": outbounds,
-            "route": self.build_route()
+            "route": self.build_route_tuned()
         });
 
         let rule_sets = self.build_rule_sets();
@@ -369,6 +421,37 @@ impl ConfigGenerator {
         names
     }
 
+    fn build_route_tuned(&self) -> Value {
+        let mut route = self.build_route();
+        let frag = self.dpi_profile.packet_fragment();
+        let record = self.dpi_profile.record_fragment();
+        if !frag && !record {
+            return route;
+        }
+
+        let mut rule = json!({
+            "action": "route-options",
+            "network": ["tcp"],
+            "port": [443, 8443]
+        });
+        if frag {
+            rule["tls_fragment"] = json!(true);
+            let delay = self.dpi_profile.fallback_delay();
+            if !delay.is_empty() {
+                rule["tls_fragment_fallback_delay"] = json!(delay);
+            }
+        }
+        if record {
+            rule["tls_record_fragment"] = json!(true);
+        }
+
+        match route.get_mut("rules").and_then(|r| r.as_array_mut()) {
+            Some(rules) => rules.insert(0, rule),
+            None => route["rules"] = json!([rule]),
+        }
+        route
+    }
+
     fn build_route(&self) -> Value {
         let mut rules: Vec<Value> = Vec::new();
 
@@ -496,11 +579,12 @@ impl ConfigGenerator {
         }
 
         if self.enable_padding && Self::supports_mux(proxy) {
+            let (links, streams) = self.dpi_profile.mux_streams();
             out["multiplex"] = json!({
                 "enabled": true,
                 "protocol": "h2mux",
-                "max_connections": 4,
-                "min_streams": 4,
+                "max_connections": links,
+                "min_streams": streams,
                 "padding": true
             });
         }
