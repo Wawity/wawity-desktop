@@ -59,7 +59,7 @@
               <div class="ob-badge ob-badge--success rise" style="--d: 0.05s">
                 <HardDriveDownload :size="22" aria-hidden="true" />
               </div>
-              <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('migFoundTitle', { n: migPicked.size })"></h2>
+              <h2 class="ob-title rise" style="--d: 0.06s" v-text="ot('migFoundTitle', { n: migPicked })"></h2>
               <p class="ob-sub rise" style="--d: 0.11s" v-text="ot('migFoundSub')"></p>
             </div>
             <div class="ob-list ob-mig-list rise" style="--d: 0.13s">
@@ -93,11 +93,13 @@
               <button
                 type="button"
                 class="ob-btn ob-btn--primary"
-                :disabled="migImporting || migPicked.size === 0"
+                :disabled="migImporting || migPicked === 0"
                 @click="commitMigration"
               >
                 <Loader2 v-if="migImporting" :size="14" class="spin" aria-hidden="true" />
-                <span v-text="ot('migImport', { n: migPicked.size })"></span>
+                <span
+                  v-text="migImporting ? migImportLabel : ot('migImport', { n: migPicked })"
+                ></span>
               </button>
               <button
                 type="button"
@@ -685,6 +687,7 @@ import {
 } from '../lib/appIcons';
 import { useVpnStore } from '../stores/vpn';
 import { useAppIcon } from '../composables/useAppIcon';
+import { useNotifications } from '../composables/useNotifications';
 import { t, setLanguage } from '../i18n';
 import NeutronStar from './NeutronStar.vue';
 
@@ -705,6 +708,7 @@ const emit = defineEmits<{
 }>();
 
 const store = useVpnStore();
+const { pushToast } = useNotifications();
 const { iconSrc } = useAppIcon();
 
 const booted = ref(false);
@@ -795,6 +799,7 @@ const migLaunched = ref(false);
 const migFound = ref<ForeignSub[]>([]);
 const migSkipped = reactive(new Set<string>());
 const migImporting = ref(false);
+const migImportLabel = ref('');
 const migClientLabel = ref(MIG_CLIENTS[0]);
 let migLabelTimer = 0;
 
@@ -863,6 +868,10 @@ function shortUrl(url: string): string {
 async function commitMigration() {
   if (migImporting.value) return;
   migImporting.value = true;
+  const total = migPicked.value;
+  migImportLabel.value = ot('migImport', { n: total });
+  let imported = 0;
+  let failed = 0;
   try {
     for (let i = 0; i < migFound.value.length; i++) {
       if (migSkipped.has(rowKey(i))) continue;
@@ -872,11 +881,25 @@ async function commitMigration() {
         const preview = await store.fetchSubscriptionPreview(sub.url);
         if (preview.servers.length > 0) {
           store.addSubscription(sub.url, sub.name, preview.servers);
+          imported += 1;
+        } else {
+          failed += 1;
         }
-      } catch {}
+      } catch {
+        failed += 1;
+      }
+      migImportLabel.value = ot('migProgress', {
+        done: imported + failed,
+        total,
+      });
     }
   } finally {
     migImporting.value = false;
+  }
+  if (imported > 0) {
+    pushToast('success', ot('migDone'), ot('migDoneDesc', { n: imported, total: imported + failed }), 4500);
+  } else if (failed > 0) {
+    pushToast('error', ot('migFail'), ot('migFailDesc'), 6000);
   }
   step.value = 3;
 }

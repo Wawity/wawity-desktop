@@ -295,14 +295,16 @@ fn scan_hiddify() -> (ClientReport, Vec<MigratedSubscription>) {
     let Some(dir) = existing(&dir_candidates) else { return (report_base, vec![]) };
 
     let mut subs = Vec::new();
-    fn walk(dir: &std::path::Path, depth: usize, subs: &mut Vec<MigratedSubscription>) {
-        if depth > 4 || subs.len() >= 10 { return; }
+    fn walk(dir: &std::path::Path, depth: usize, subs: &mut Vec<MigratedSubscription>, budget: &mut usize) {
+        if depth > 4 || subs.len() >= 10 || *budget == 0 { return; }
         for entry in std::fs::read_dir(dir).into_iter().flatten() {
+            if *budget == 0 { return; }
             let Ok(entry) = entry else { continue };
             let path = entry.path();
             if path.is_dir() {
-                walk(&path, depth + 1, subs);
+                walk(&path, depth + 1, subs, budget);
             } else if path.extension().map(|e| e == "json" || e == "db" || e == "txt").unwrap_or(false) {
+                *budget = budget.saturating_sub(1);
                 if let Ok(text) = std::fs::read_to_string(&path) {
                     let (_, urls) = harvest(&text);
                     for url in urls {
@@ -319,7 +321,8 @@ fn scan_hiddify() -> (ClientReport, Vec<MigratedSubscription>) {
             }
         }
     }
-    walk(&dir, 0, &mut subs);
+    let mut budget: usize = 400;
+    walk(&dir, 0, &mut subs, &mut budget);
 
     let report = ClientReport { found: true, detail: dir.display().to_string(), ..report_base };
     (report, subs)
@@ -419,24 +422,34 @@ fn sweep_for_urls(
     const SKIP_EXT: [&str; 12] = [
         "exe", "dll", "pak", "bin", "dat", "png", "jpg", "jpeg", "ico", "webp", "woff2", "so",
     ];
+    const SKIP_DIR: [&str; 9] = [
+        "cache", "caches", "gpucache", "code cache", "logs", "log", "crashpad",
+        "node_modules", "shadercache",
+    ];
     const MAX_FILE: u64 = 3 * 1024 * 1024;
+    const MAX_FILES: usize = 600;
 
     fn walk(
         dir: &std::path::Path,
         depth: usize,
         label: &str,
         max_subs: usize,
+        budget: &mut usize,
         subs: &mut Vec<MigratedSubscription>,
     ) {
-        if depth > 5 || subs.len() >= max_subs { return; }
+        if depth > 5 || subs.len() >= max_subs || *budget == 0 { return; }
         let Ok(entries) = std::fs::read_dir(dir) else { return };
         for entry in entries.flatten() {
+            if *budget == 0 { return; }
             let Ok(meta) = entry.metadata() else { continue };
             let path = entry.path();
             if meta.is_dir() {
-                walk(&path, depth + 1, label, max_subs, subs);
+                let name = entry.file_name().to_string_lossy().to_lowercase();
+                if SKIP_DIR.contains(&name.as_str()) { continue; }
+                walk(&path, depth + 1, label, max_subs, budget, subs);
                 continue;
             }
+            *budget = budget.saturating_sub(1);
             if meta.len() == 0 || meta.len() > MAX_FILE { continue; }
             let ext = path
                 .extension()
@@ -461,11 +474,19 @@ fn sweep_for_urls(
             }
         }
     }
-    walk(root, 0, label, max_subs, subs);
+    let mut budget: usize = MAX_FILES;
+    walk(root, 0, label, max_subs, &mut budget, subs);
 }
 
 #[tauri::command]
-pub fn scan_foreign_clients() -> MigrationScanResult {
+pub async fn scan_foreign_clients() -> MigrationScanResult {
+    tokio::task::spawn_blocking(scan_all).await.unwrap_or(MigrationScanResult {
+        clients: Vec::new(),
+        subscriptions: Vec::new(),
+    })
+}
+
+fn scan_all() -> MigrationScanResult {
     let scanners: Vec<fn() -> (ClientReport, Vec<MigratedSubscription>)> = vec![
         scan_v2rayn,
         scan_clash_verge,
