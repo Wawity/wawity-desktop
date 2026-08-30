@@ -1,0 +1,43 @@
+# Node
+node_modules/
+
+# Vite / frontend build
+dist/
+dist-build/
+
+# Rust build artifacts
+target/
+src-tauri/target/
+installer/target/
+
+# Local cargo config & home (mirror settings, registry cache)
+.cargo/
+.cargo-home/
+installer/.cargo/
+
+# PS1 scripts (dev utilities, not part of the build)
+*.ps1
+
+# Logs
+*.log
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Env / secrets
+.env
+.env.*
+
+# Local-only landing site (kept out of the repository on purpose)
+public/index.html
+public/preview.html
+public/docs.html
+public/contacts.html
+public/privacy.html
+public/terms.html
+public/home.css
+public/screen-main.jpg
+public/screen-settings.jpg
+public/screen-traffic.jpg

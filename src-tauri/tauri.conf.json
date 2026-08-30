@@ -1,0 +1,117 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://127.0.0.1:1420",
+    "distDir": "../dist",
+    "withGlobalTauri": true
+  },
+  "package": {
+    "productName": "Wawity",
+    "version": "0.2.1"
+  },
+  "tauri": {
+    "systemTray": {
+      "iconPath": "icons/wawity.ico",
+      "iconAsTemplate": false
+    },
+    "allowlist": {
+      "all": true,
+      "shell": {
+        "all": true,
+        "open": true
+      },
+      "fs": {
+        "all": true,
+        "scope": [
+          "**"
+        ]
+      },
+      "path": {
+        "all": true
+      },
+      "os": {
+        "all": true
+      },
+      "process": {
+        "all": true,
+        "relaunch": true,
+        "exit": true
+      },
+      "clipboard": {
+        "all": true,
+        "readText": true,
+        "writeText": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": [
+        "nsis"
+      ],
+      "identifier": "com.wawity.vpn",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/wawity.ico"
+      ],
+      "resources": [
+        "binaries/sing-box-x86_64.exe",
+        "binaries/wintun.dll",
+        "rulesets/geosite-category-ads-all.srs",
+        "rulesets/geosite-private.srs"
+      ],
+      "windows": {
+        "digestAlgorithm": "sha256",
+        "webviewInstallMode": {
+          "type": "embedBootstrapper"
+        },
+        "nsis": {
+          "displayLanguageSelector": false,
+          "languages": [
+            "English"
+          ],
+          "installMode": "perMachine",
+          "installerIcon": "icons/wawity.ico"
+        },
+        "timestampUrl": "http://timestamp.digicert.com",
+        "signCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File ./sign.ps1 %1"
+      }
+    },
+    "windows": [
+      {
+        "label": "main",
+        "url": "index.html",
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Wawity VPN",
+        "width": 1000,
+        "height": 700,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
+        "decorations": false,
+        "transparent": false,
+        "visible": false
+      },
+      {
+        "label": "splash",
+        "url": "splash.html",
+        "title": "Wawity",
+        "width": 360,
+        "height": 420,
+        "center": true,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}
