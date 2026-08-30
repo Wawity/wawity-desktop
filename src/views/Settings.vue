@@ -620,7 +620,7 @@
                   type="button"
                   class="hotkey-btn"
                   :class="{ 'hotkey-btn--recording': recordingTarget === 'toggle' }"
-                  @click="startHotkeyCapture('toggle')"
+                  @click="startHotkeyCapture($event, 'toggle')"
                   @keydown="captureHotkey"
                   @blur="stopHotkeyCapture"
                 >
@@ -645,7 +645,7 @@
                   type="button"
                   class="hotkey-btn"
                   :class="{ 'hotkey-btn--recording': recordingTarget === 'panic' }"
-                  @click="startHotkeyCapture('panic')"
+                  @click="startHotkeyCapture($event, 'panic')"
                   @keydown="captureHotkey"
                   @blur="stopHotkeyCapture"
                 >

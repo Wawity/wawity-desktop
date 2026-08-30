@@ -795,7 +795,6 @@ interface ForeignSub {
 const MIG_CLIENTS = ['v2rayN', 'Clash Verge', 'Clash / mihomo', 'Nekoray', 'Hiddify'];
 
 const migState = ref<'scanning' | 'found' | 'none'>('scanning');
-const migLaunched = ref(false);
 const migFound = ref<ForeignSub[]>([]);
 const migSkipped = reactive(new Set<string>());
 const migImporting = ref(false);
@@ -804,14 +803,15 @@ const migClientLabel = ref(MIG_CLIENTS[0]);
 let migLabelTimer = 0;
 
 watch(step, (value) => {
-  if (value === 2 && !migLaunched.value) {
-    migLaunched.value = true;
+  if (value === 2) {
     void startMigrationScan();
   }
 });
 
 async function startMigrationScan() {
   migState.value = 'scanning';
+  migFound.value = [];
+  migSkipped.clear();
   let idx = 0;
   migClientLabel.value = MIG_CLIENTS[0];
   migLabelTimer = window.setInterval(() => {

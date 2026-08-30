@@ -53,6 +53,35 @@ fn looks_like_share_link(line: &str) -> bool {
     SHARE_SCHEMES.iter().any(|scheme| lower.starts_with(scheme))
 }
 
+/// Cuts a trailing fused-in timestamp (e.g. `…7aq2026-08-04T17:53:36.118791`)
+/// that sqlite raw dumps often append right after the real URL.
+fn strip_fused_timestamp(url: &str) -> &str {
+    let b = url.as_bytes();
+    if b.len() < 19 {
+        return url;
+    }
+    let is_digits = |s: &[u8]| s.iter().all(|c| c.is_ascii_digit());
+    let mut i = 0;
+    while i + 19 <= b.len() {
+        if is_digits(&b[i..i + 4])
+            && b[i + 4] == b'-'
+            && is_digits(&b[i + 5..i + 7])
+            && b[i + 7] == b'-'
+            && is_digits(&b[i + 8..i + 10])
+            && (b[i + 10] == b'T' || b[i + 10] == b' ')
+            && is_digits(&b[i + 11..i + 13])
+            && b[i + 13] == b':'
+            && is_digits(&b[i + 14..i + 16])
+            && b[i + 16] == b':'
+            && is_digits(&b[i + 17..i + 19])
+        {
+            return &url[..i];
+        }
+        i += 1;
+    }
+    url
+}
+
 fn looks_like_sub_url(line: &str) -> bool {
     let l = line.trim();
     let lower = l.to_ascii_lowercase();
@@ -66,9 +95,27 @@ fn looks_like_sub_url(line: &str) -> bool {
     l.len() > 18
 }
 
+const URL_STOP: [char; 6] = [' ', '"', '\'', ')', '<', '>'];
+
 fn harvest(text: &str) -> (Vec<String>, Vec<String>) {
     let mut links = Vec::new();
     let mut urls = Vec::new();
+
+    let scan = |t: &str, prefix: &str, out: &mut Vec<String>| {
+        let mut i = 0;
+        while i < t.len() {
+            let Some(pos) = t[i..].find(prefix) else { break };
+            let start = i + pos;
+            let tail = &t[start..];
+            let end = tail.find(|c: char| URL_STOP.contains(&c)).unwrap_or(tail.len());
+            let cand = strip_fused_timestamp(tail[..end].trim_end_matches(['.', ',', ';', ':']));
+            if cand.len() > 18 && !out.iter().any(|u: &String| u == cand) {
+                out.push(cand.to_string());
+            }
+            i = start + prefix.len();
+        }
+    };
+
     for line in text.lines().chain(text.split_whitespace()) {
         let t = line.trim();
         if looks_like_share_link(t) {
@@ -76,13 +123,19 @@ fn harvest(text: &str) -> (Vec<String>, Vec<String>) {
             if !links.iter().any(|l: &String| l == link) {
                 links.push(link.to_string());
             }
-        } else if looks_like_sub_url(t) {
-            let url = t.split([' ', '"', '\'', ')']).next().unwrap_or(t);
-            if !urls.iter().any(|u: &String| u == url) {
-                urls.push(url.to_string());
-            }
+            continue;
+        }
+        for scheme in ["https://", "http://"] {
+            scan(t, scheme, &mut urls);
         }
     }
+
+    urls.retain(|u| {
+        let lower = u.to_ascii_lowercase();
+        const BAD: [&str; 7] = ["github.com/", "githubusercontent.com/", "mozilla.org", "w3.org", "example.com", "localhost", "t.me/"];
+        !BAD.iter().any(|b| lower.contains(b))
+    });
+
     (links, urls)
 }
 
@@ -303,19 +356,26 @@ fn scan_hiddify() -> (ClientReport, Vec<MigratedSubscription>) {
             let path = entry.path();
             if path.is_dir() {
                 walk(&path, depth + 1, subs, budget);
-            } else if path.extension().map(|e| e == "json" || e == "db" || e == "txt").unwrap_or(false) {
+            } else if path
+                .extension()
+                .map(|e| {
+                    let e = e.to_string_lossy().to_lowercase();
+                    e == "json" || e == "db" || e == "txt" || e == "sqlite" || e == "sqlite3" || e == "db3"
+                })
+                .unwrap_or(false)
+            {
                 *budget = budget.saturating_sub(1);
-                if let Ok(text) = std::fs::read_to_string(&path) {
-                    let (_, urls) = harvest(&text);
-                    for url in urls {
-                        if !subs.iter().any(|s: &MigratedSubscription| s.url.as_deref() == Some(url.as_str())) {
-                            subs.push(MigratedSubscription {
-                                name: "Hiddify".into(),
-                                url: Some(url),
-                                inline_links: vec![],
-                                source_path: path.display().to_string(),
-                            });
-                        }
+                let bytes = match std::fs::read(&path) { Ok(b) => b, Err(_) => continue };
+                let text = String::from_utf8_lossy(&bytes);
+                let (_, urls) = harvest(&text);
+                for url in urls {
+                    if !subs.iter().any(|s: &MigratedSubscription| s.url.as_deref() == Some(url.as_str())) {
+                        subs.push(MigratedSubscription {
+                            name: "Hiddify".into(),
+                            url: Some(url),
+                            inline_links: vec![],
+                            source_path: path.display().to_string(),
+                        });
                     }
                 }
             }
@@ -415,7 +475,7 @@ fn scan_generic() -> (ClientReport, Vec<MigratedSubscription>) {
 fn sweep_for_urls(
     root: &std::path::Path,
     label: &str,
-    max_depth: usize,
+    _max_depth: usize,
     max_subs: usize,
     subs: &mut Vec<MigratedSubscription>,
 ) {
