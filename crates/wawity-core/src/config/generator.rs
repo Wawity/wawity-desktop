@@ -259,6 +259,11 @@ impl ConfigGenerator {
         let (a, b) = match bootstrap {
             "google" => ("8.8.8.8", "8.8.4.4"),
             "quad9" => ("9.9.9.9", "149.112.112.112"),
+            "mullvad" => ("194.242.2.2", "193.19.108.2"),
+            "dns_sbi" => ("185.222.222.222", "45.11.45.121"),
+            "dns_sby" => ("45.90.28.0", "45.90.30.0"),
+            "digitale" => ("62.210.28.69", "62.210.28.70"),
+            "yandex" => ("77.88.8.8", "77.88.8.1"),
             _ => ("1.1.1.1", "1.0.0.1"),
         };
         self.bootstrap_ip = a.to_string();
@@ -279,7 +284,8 @@ impl ConfigGenerator {
         block_lists: bool,
     ) -> Self {
         self.dns_remote = match remote {
-            "google" | "quad9" | "adguard" => remote.to_string(),
+            "google" | "quad9" | "adguard" | "mullvad" | "dns_sbi" | "dns_sby" | "digitale"
+            | "yandex" => remote.to_string(),
             _ => "cloudflare".to_string(),
         };
         let clean = custom_doh
@@ -483,7 +489,10 @@ impl ConfigGenerator {
             "strict_route": self.strict_route,
             "stack": "system"
         });
-        if self.split_mode == SplitMode::Exclude && !self.bypass_apps.is_empty() {
+        if !self.kill_switch
+            && self.split_mode == SplitMode::Exclude
+            && !self.bypass_apps.is_empty()
+        {
             tun["route_exclude_address"] = json!(Self::VALVE_GAME_RANGES);
             crate::util::net_debug_log(&format!(
                 "tun exclude: {} valve ranges kernel-bypassed",
@@ -516,6 +525,11 @@ impl ConfigGenerator {
 
         let split_dns_server = if self.split_mode.is_include() {
             "remote-dns-doh"
+        } else if self.system_dns.is_some() {
+            // Split domains go DIRECT, so they must resolve through the ISP
+            // resolver: plain UDP to public resolvers (1.1.1.1:53 etc.) is
+            // commonly blackholed, which kills the whole split rule silently.
+            "isp-dns"
         } else {
             "direct-dns"
         };
@@ -546,6 +560,11 @@ impl ConfigGenerator {
                 "google" => ("8.8.8.8", "8.8.4.4", 443, 853),
                 "quad9" => ("9.9.9.9", "149.112.112.112", 443, 853),
                 "adguard" => ("94.140.14.14", "94.140.15.15", 443, 853),
+                "mullvad" => ("194.242.2.2", "193.19.108.2", 443, 853),
+                "dns_sbi" => ("185.222.222.222", "45.11.45.121", 443, 853),
+                "dns_sby" => ("45.90.28.0", "45.90.30.0", 443, 853),
+                "digitale" => ("62.210.28.69", "62.210.28.70", 443, 853),
+                "yandex" => ("77.88.8.8", "77.88.8.1", 443, 853),
                 _ => ("1.1.1.1", "1.0.0.1", 443, 853),
             };
 
@@ -797,20 +816,26 @@ impl ConfigGenerator {
             return route;
         }
 
+        // sing-box: `tls_fragment` and `tls_record_fragment` are mutually
+        // exclusive. Soft relies on packet-level splitting, Medium/Hard switch
+        // to the stronger record-level fragmentation instead of combining both.
         let mut rule = json!({
             "action": "route-options",
             "network": ["tcp"],
             "port": [443, 8443]
         });
-        if frag {
+        if record {
+            rule["tls_record_fragment"] = json!(true);
+            let delay = self.dpi_profile.fallback_delay();
+            if !delay.is_empty() {
+                rule["tls_fragment_fallback_delay"] = json!(delay);
+            }
+        } else {
             rule["tls_fragment"] = json!(true);
             let delay = self.dpi_profile.fallback_delay();
             if !delay.is_empty() {
                 rule["tls_fragment_fallback_delay"] = json!(delay);
             }
-        }
-        if record {
-            rule["tls_record_fragment"] = json!(true);
         }
 
         match route.get_mut("rules").and_then(|r| r.as_array_mut()) {

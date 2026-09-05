@@ -99,10 +99,10 @@ void main() {
   vec3 col = vec3(0.0);
   float alpha = 0.0;
 
-  float glint = stars(uv, 46.0, 0.9935) + stars(uv + 31.7, 130.0, 0.996) * 0.7;
-  col += vec3(0.9, 0.93, 1.0) * glint * 0.7;
-  col += (vec3(0.30, 0.24, 0.50) * fbm3(vec3(uv * 2.4, 3.1))
-    + vec3(0.13, 0.20, 0.40) * fbm3(vec3(uv * 1.2, 9.4))) * 0.26;
+  float glint = stars(uv, 46.0, 0.995) + stars(uv + 31.7, 130.0, 0.997) * 0.55;
+  col += vec3(0.9, 0.93, 1.0) * glint * 0.45;
+  col += (vec3(0.13, 0.11, 0.22) * fbm3(vec3(uv * 2.4, 3.1))
+    + vec3(0.05, 0.08, 0.17) * fbm3(vec3(uv * 1.2, 9.4))) * 0.12;
 
   if (d2 < 1.0) {
     float z = sqrt(1.0 - d2);
@@ -158,8 +158,8 @@ void main() {
   } else {
     float halo = exp(-(sqrt(d2) - 1.0) * 9.0);
     float side = clamp(dot(normalize(vec3(p, 0.35)), sun) * 0.5 + 0.5, 0.0, 1.0);
-    col += vec3(0.30, 0.55, 1.0) * halo * (0.12 + 0.5 * side);
-    alpha = halo * (0.25 + 0.5 * side);
+    col += vec3(0.30, 0.55, 1.0) * halo * (0.06 + 0.28 * side);
+    alpha = halo * (0.14 + 0.30 * side);
   }
 
   col = 1.0 - exp(-col * 1.5);

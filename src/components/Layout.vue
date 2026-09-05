@@ -11,17 +11,11 @@
       <span v-else class="custom-bg-note" v-text="t('settings.bgLoadFail')" />
       <span class="custom-bg-dim" />
     </div>
-    <div v-if="!isMaterial && !customBgOn" class="ambient" aria-hidden="true">
-      <span class="ambient-blob ambient-blob--violet"></span>
-      <span class="ambient-blob ambient-blob--blue"></span>
-      <span class="ambient-blob ambient-blob--ember"></span>
-    </div>
     <template v-if="!isMaterial && !customBgOn">
       <BlackHole
         v-if="spawned.home"
         v-show="backdrop.home"
         :active="backdrop.home || scenePrewarm"
-        :detail="vpnStore.settings.black_hole_detail"
       />
       <Pulsar
         v-if="spawned.settings"
@@ -345,24 +339,25 @@ watchEffect(() => {
 onMounted(() => {
   if (!glassOn.value) return;
   const probe = document.createElement('div');
+  // On-screen (WebView2 skips backdrop-filter compilation for offscreen layers),
+  // nearly invisible, with the exact blur radius used by the glass panels.
   probe.style.cssText =
-    'position:fixed;top:-320px;left:-320px;width:300px;height:300px;pointer-events:none;';
+    'position:fixed;right:0;bottom:0;width:180px;height:180px;z-index:-1;pointer-events:none;opacity:0.02;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transform:translateZ(0);contain:strict;';
   document.body.appendChild(probe);
 
-  const radii = [10, 12, 14];
+  const radii = [13, 15, 14];
   radii.forEach((r, i) => {
     window.setTimeout(() => {
       probe.style.backdropFilter = `blur(${r}px)`;
       probe.style.webkitBackdropFilter = `blur(${r}px)`;
-      
       probe.style.transform = i % 2 ? 'translateZ(0)' : 'translateZ(0.5px)';
-    }, 30 * i);
+    }, 60 * i);
   });
 
   window.setTimeout(() => {
     probe.style.transform = 'scale(1.04)';
-  }, 140);
-  window.setTimeout(() => probe.remove(), 260);
+  }, 220);
+  window.setTimeout(() => probe.remove(), 900);
 });
 
 const scenePrewarm = ref(false);
@@ -733,24 +728,6 @@ async function hideWin() {
 .custom-bg img{width:100%;height:100%;object-fit:cover;filter:blur(var(--bg-blur,0px));transform:scale(var(--bg-scale,1))}
 .custom-bg-dim{position:absolute;inset:0;background:rgba(5,6,10,var(--bg-dim,0.45))}
 .custom-bg-note{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:rgba(235,238,250,.4);background:var(--background)}
-.ambient{position:fixed;top:0;right:0;bottom:0;left:0;z-index:0;overflow:hidden;pointer-events:none;contain:strict}
-
-.ambient-blob{position:absolute;border-radius:50%;will-change:transform;transform:translateZ(0);backface-visibility:hidden}
-
-@media(prefers-reduced-motion:reduce){.ambient-blob{animation:none!important}}
-
-.ambient-blob--violet{width:55vw;height:55vw;left:-12vw;top:-18vh;background:radial-gradient(circle,rgba(139,92,246,.17),transparent 65%);animation:drift-a 26s ease-in-out infinite alternate}
-
-.ambient-blob--blue{width:60vw;height:60vw;right:-20vw;top:30vh;background:radial-gradient(circle,rgba(56,116,203,.13),transparent 65%);animation:drift-b 34s ease-in-out infinite alternate}
-
-.ambient-blob--ember{width:40vw;height:40vw;left:25vw;bottom:-22vh;background:radial-gradient(circle,rgba(190,100,60,.08),transparent 65%);animation:drift-c 30s ease-in-out infinite alternate}
-
-@keyframes drift-a{from{transform:translate(0,0) scale(1)}to{transform:translate(7vw,5vh) scale(1.12)}}
-
-@keyframes drift-b{from{transform:translate(0,0) scale(1.08)}to{transform:translate(-6vw,-6vh) scale(1)}}
-
-@keyframes drift-c{from{transform:translate(0,0) scale(1)}to{transform:translate(5vw,-4vh) scale(1.15)}}
-
 .route-enter-active{animation:routeInSimple .26s cubic-bezier(.34,1.3,.64,1) both}
 
 .route-leave-active{animation:routeOut .12s ease both}

@@ -81,8 +81,25 @@ export interface AppSettings {
   auto_ping_minutes: number;
   tunnel_own_traffic: boolean;
   dns_leak_guard: boolean;
-  bootstrap_dns: 'cloudflare' | 'quad9' | 'google';
-  dns_remote: 'cloudflare' | 'google' | 'quad9' | 'adguard';
+  bootstrap_dns:
+    | 'cloudflare'
+    | 'quad9'
+    | 'google'
+    | 'mullvad'
+    | 'dns_sbi'
+    | 'dns_sby'
+    | 'digitale'
+    | 'yandex';
+  dns_remote:
+    | 'cloudflare'
+    | 'google'
+    | 'quad9'
+    | 'adguard'
+    | 'mullvad'
+    | 'dns_sbi'
+    | 'dns_sby'
+    | 'digitale'
+    | 'yandex';
   dns_custom_doh: string;
   dns_block_ads: boolean;
   dns_block_trackers: boolean;

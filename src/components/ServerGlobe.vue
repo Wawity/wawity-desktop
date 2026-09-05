@@ -101,7 +101,12 @@ const vpnStore = useVpnStore();
 const isMaterial = computed(() => vpnStore.settings.ui_style === 'material');
 
 const buckets = computed(() =>
-  groupServers(vpnStore.subscriptions, props.query, vpnStore.settings.language),
+  groupServers(
+    vpnStore.subscriptions,
+    props.query,
+    vpnStore.settings.language,
+    vpnStore.hiddenSubIds,
+  ),
 );
 
 const picked = ref('');

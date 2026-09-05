@@ -68,7 +68,7 @@
                 :key="sub.name + i"
                 type="button"
                 class="ob-row"
-                :class="{ 'ob-row--picked': !migSkipped.has(sub.name + i) }"
+                :class="{ 'ob-row--picked': !isMigSkipped(i) }"
                 @click="toggleMigRow(i)"
               >
                 <span class="ob-row-icon"><AppWindow :size="14" aria-hidden="true" /></span>
@@ -83,7 +83,7 @@
                 </span>
                 <span
                   class="ob-check"
-                  :class="{ 'ob-check--on': !migSkipped.has(sub.name + i) }"
+                  :class="{ 'ob-check--on': !isMigSkipped(i) }"
                 >
                   <Check :size="12" aria-hidden="true" />
                 </span>
@@ -846,6 +846,10 @@ async function startMigrationScan() {
 
 function rowKey(i: number): string {
   return `${migFound.value[i]?.name ?? ''}#${i}`;
+}
+
+function isMigSkipped(i: number): boolean {
+  return migSkipped.has(rowKey(i));
 }
 
 function toggleMigRow(i: number) {

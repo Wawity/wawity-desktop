@@ -34,7 +34,7 @@
                   <p class="row-desc" v-text="dpiHint" />
                 </div>
               </div>
-              <div class="seg">
+              <div class="seg seg--wrap">
                 <button
                   v-for="mode in DPI_MODES"
                   :key="mode"
@@ -210,19 +210,77 @@
                   <p class="row-desc" v-text="t('settings.bootstrapDnsDesc')" />
                 </div>
               </div>
-              <div style="display: flex; gap: 6px">
+              <div class="boot-seg">
                 <button
                   v-for="opt in bootstrapOptions"
                   :key="opt"
                   type="button"
-                  :class="[
-                    'seg-btn',
-                    vpnStore.settings.bootstrap_dns === opt ? 'seg-btn--active' : '',
-                  ]"
+                  class="seg-btn boot-pill-btn"
+                  :class="vpnStore.settings.bootstrap_dns === opt ? 'seg-btn--active' : ''"
                   @click="setBootstrapDns(opt)"
                   v-text="opt"
                 />
               </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="row-left">
+                <Globe2 :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.dnsRemote')" />
+                  <p class="row-desc" v-text="t('settings.dnsRemoteDesc')" />
+                </div>
+              </div>
+              <div class="seg dns-seg">
+                <button
+                  v-for="preset in DNS_PRESETS"
+                  :key="preset.key"
+                  type="button"
+                  class="seg-btn dns-pill-btn"
+                  :class="{ 'seg-btn--active': activeDnsKeyRef === preset.key }"
+                  @click="setDnsPreset(preset.key)"
+                  v-text="t(preset.labelKey)"
+                />
+              </div>
+            </div>
+
+            <div v-if="showCustomDoh" class="setting-row">
+              <div class="row-left">
+                <Link2 :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('settings.dnsCustom')" />
+                  <p class="row-desc" v-text="t('settings.dnsCustomDesc')" />
+                </div>
+              </div>
+              <input
+                :value="vpnStore.settings.dns_custom_doh"
+                type="text"
+                placeholder="https://…/dns-query"
+                spellcheck="false"
+                class="app-input dns-custom-input mono"
+                :aria-label="t('settings.dnsCustom')"
+                @change="commitCustomDoh(($event.target as HTMLInputElement).value)"
+              />
+            </div>
+
+            <div class="setting-row" style="border-bottom: none">
+              <div class="row-left">
+                <Radar :size="16" class="row-icon" />
+                <div class="row-text">
+                  <p class="row-title" v-text="t('calib.settingsTitle')" />
+                  <p class="row-desc" v-text="t('calib.settingsDesc')" />
+                </div>
+              </div>
+              <button
+                type="button"
+                class="calib-btn"
+                :disabled="vpnStore.dnsCalibrating || !vpnStore.status.connected"
+                @click="runCalibration"
+              >
+                <Loader2 v-if="vpnStore.dnsCalibrating" :size="12" class="spin" />
+                <Radar v-else :size="12" />
+                <span v-text="t('calib.fix')" />
+              </button>
             </div>
           </div>
 
@@ -908,7 +966,6 @@
           </div>
 
           <div v-else-if="activeTab === 'appearance'" class="card">
-            
 
             <div class="setting-row">
               <div class="row-left">
@@ -1164,85 +1221,6 @@
             <p class="split-desc" v-text="t('settings.splitDesc')" />
 
             
-            <div class="dns-block">
-              <div class="block-head">
-                <span class="split-mode-title" v-text="t('settings.dnsCenterTitle')" />
-                <button
-                  type="button"
-                  class="tpl-help"
-                  :class="{ 'tpl-help--on': openDnsHelp }"
-                  :title="t('settings.dnsWhatsThis')"
-                  @click="openDnsHelp = !openDnsHelp"
-                >
-                  <HelpCircle :size="13" />
-                </button>
-              </div>
-
-              <div v-if="openDnsHelp" class="tpl-detail sg-help">
-                <p class="tpl-detail-text" v-html="t('settings.dnsHelpBody')" />
-              </div>
-
-              <div class="setting-row dns-row">
-                <div class="row-left">
-                  <Globe2 :size="16" class="row-icon" />
-                  <div class="row-text">
-                    <p class="row-title" v-text="t('settings.dnsRemote')" />
-                    <p class="row-desc" v-text="t('settings.dnsRemoteDesc')" />
-                  </div>
-                </div>
-                <div class="seg dns-seg">
-                  <button
-                    v-for="preset in DNS_PRESETS"
-                    :key="preset.key"
-                    type="button"
-                    class="seg-btn dns-pill-btn"
-                    :class="{ 'seg-btn--active': activeDnsKeyRef === preset.key }"
-                    @click="setDnsPreset(preset.key)"
-                    v-text="t(preset.labelKey)"
-                  />
-                </div>
-              </div>
-
-              <div v-if="showCustomDoh" class="setting-row dns-row">
-                <div class="row-left">
-                  <Link2 :size="16" class="row-icon" />
-                  <div class="row-text">
-                    <p class="row-title" v-text="t('settings.dnsCustom')" />
-                    <p class="row-desc" v-text="t('settings.dnsCustomDesc')" />
-                  </div>
-                </div>
-                <input
-                  :value="vpnStore.settings.dns_custom_doh"
-                  type="text"
-                  placeholder="https://…/dns-query"
-                  spellcheck="false"
-                  class="app-input dns-custom-input mono"
-                  :aria-label="t('settings.dnsCustom')"
-                  @change="commitCustomDoh(($event.target as HTMLInputElement).value)"
-                />
-              </div>
-
-              <div class="setting-row dns-row">
-                <div class="row-left">
-                  <ShieldAlert :size="16" class="row-icon" />
-                  <div class="row-text">
-                    <p class="row-title" v-text="t('settings.dnsBlockLists')" />
-                    <p class="row-desc" v-text="t('settings.dnsBlockListsDesc')" />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="dnsBlockOn"
-                  :class="['toggle', dnsBlockOn ? 'toggle--on' : '']"
-                  @click="toggleDnsBlock"
-                >
-                  <span :class="['toggle-thumb', dnsBlockOn ? 'toggle-thumb--on' : '']" />
-                </button>
-              </div>
-
-              <p v-if="vpnStore.splitDirty" class="dns-apply-hint" v-text="t('settings.dnsApplyHint')" />
-            </div>
 
             <div
               class="sg-block steam-fix"
@@ -1842,17 +1820,90 @@
                 </div>
               </div>
 
-              <div class="setting-row">
-                <button type="button" style="flex: 1" class="reset-btn" @click="reset">
-                  <RotateCcw :size="14" />
-                  <span v-text="t('settings.resetDefaults')" />
-                </button>
-              </div>
+            <div class="setting-row">
+              <button type="button" style="flex: 1" class="reset-btn" @click="reset">
+                <RotateCcw :size="14" />
+                <span v-text="t('settings.resetDefaults')" />
+              </button>
             </div>
           </div>
         </div>
+      </div>
       </Transition>
     </div>
+
+    <!-- DNS calibration modal — Apple-style blur reveal with stepped sweep -->
+    <Transition name="calib-modal">
+      <div
+        v-if="vpnStore.dnsCalibrating"
+        class="calib-overlay"
+        @click.self=" null"
+      >
+        <div class="calib-modal">
+          <span class="calib-glow calib-glow--a" aria-hidden="true" />
+          <span class="calib-glow calib-glow--b" aria-hidden="true" />
+
+          <div class="calib-modal-head">
+            <div class="calib-orb">
+              <span class="calib-orb-ring" />
+              <span class="calib-orb-ring calib-orb-ring--2" />
+              <span class="calib-orb-dot" />
+            </div>
+            <div>
+              <p class="calib-modal-title" v-text="t('calib.runningFull')" />
+              <p class="calib-modal-sub mono" v-text="calibStatusText"></p>
+            </div>
+            <span class="calib-modal-count mono" v-text="vpnStore.calibProgress" />
+          </div>
+
+          <div class="calib-stage">
+            <div class="calib-col calib-col--left">
+              <p class="calib-col-label" v-text="t('calib.colResolver')" />
+              <div
+                v-for="(p, i) in CALIB_PROVIDERS"
+                :key="p.key"
+                class="calib-step"
+                :style="{ transitionDelay: `${i * 24}ms`, marginLeft: `${Math.min(i, 4) * 14}px` }"
+                :class="{
+                  'calib-step--done': calibLeftDone(p),
+                  'calib-step--live': vpnStore.calibrationStatus.includes(p.label) || vpnStore.calibrationStatus === p.label,
+                  'calib-step--idle': !vpnStore.calibTried.includes(p.key) && vpnStore.calibrationStatus !== p.label,
+                }"
+              >
+                <span class="calib-step-dot" />
+                <span class="calib-step-name mono" v-text="p.label" />
+                <Check v-if="calibLeftDone(p)" :size="11" class="calib-step-check" />
+              </div>
+            </div>
+            <div class="calib-divider" aria-hidden="true" />
+            <div class="calib-col calib-col--right">
+              <p class="calib-col-label" v-text="t('calib.colBootstrap')" />
+              <div
+                v-for="b in BOOTSTRAP_LIST"
+                :key="b"
+                class="calib-step calib-step--right"
+                :class="{
+                  'calib-step--done': calibRightDone(b),
+                  'calib-step--live': vpnStore.calibrationStatus.includes(bLabel(b)),
+                }"
+              >
+                <span class="calib-step-dot" />
+                <span class="calib-step-name mono" v-text="bLabel(b)" />
+                <Check v-if="calibRightDone(b)" :size="11" class="calib-step-check" />
+              </div>
+            </div>
+          </div>
+
+          <p class="calib-modal-note" v-text="t('calib.modalNote')" />
+          <button
+            type="button"
+            class="calib-cancel-btn"
+            @click="vpnStore.calibCancel = true"
+            v-text="t('calib.cancel')"
+          />
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -2040,6 +2091,11 @@ const DNS_PRESETS: DnsPreset[] = [
   { key: 'google', labelKey: 'settings.dnsPresetGoogle' },
   { key: 'quad9', labelKey: 'settings.dnsPresetQuad9' },
   { key: 'adguard', labelKey: 'settings.dnsPresetAdGuard' },
+  { key: 'mullvad', labelKey: 'settings.dnsPresetMullvad' },
+  { key: 'dns_sbi', labelKey: 'settings.dnsPresetSbi' },
+  { key: 'dns_sby', labelKey: 'settings.dnsPresetSby' },
+  { key: 'digitale', labelKey: 'settings.dnsPresetDigitale' },
+  { key: 'yandex', labelKey: 'settings.dnsPresetYandex' },
 ];
 
 
@@ -2076,16 +2132,6 @@ function commitCustomDoh(value: string) {
     return;
   }
   vpnStore.updateSettings({ dns_custom_doh: trimmed });
-  vpnStore.stageSplitChange();
-}
-
-const dnsBlockOn = computed(
-  () => vpnStore.settings.dns_block_ads !== false || vpnStore.settings.dns_block_trackers !== false,
-);
-
-function toggleDnsBlock() {
-  const next = !dnsBlockOn.value;
-  vpnStore.updateSettings({ dns_block_ads: next, dns_block_trackers: next });
   vpnStore.stageSplitChange();
 }
 
@@ -2352,7 +2398,16 @@ async function resetHwid() {
   await vpnStore.resetHwid();
 }
 
-const bootstrapOptions: Array<AppSettings['bootstrap_dns']> = ['cloudflare', 'quad9', 'google'];
+const bootstrapOptions: Array<AppSettings['bootstrap_dns']> = [
+  'cloudflare',
+  'quad9',
+  'google',
+  'mullvad',
+  'dns_sbi',
+  'dns_sby',
+  'digitale',
+  'yandex',
+];
 
 function setBootstrapDns(value: AppSettings['bootstrap_dns']) {
   vpnStore.updateSettings({ bootstrap_dns: value });
@@ -2572,6 +2627,13 @@ onMounted(() => {
   const tabParam = route.query.tab;
   if (typeof tabParam === 'string' && tabs.some((tb) => tb.key === tabParam)) {
     activeTab.value = tabParam as TabKey;
+  }
+  if (route.query.calibrate === '1') {
+    activeTab.value = 'security';
+    if (vpnStore.status.connected) {
+      void runCalibration();
+    }
+    return;
   }
   const highlight = route.query.highlight;
   if (highlight === 'killswitch' || highlight === 'alwayson') {
@@ -3078,6 +3140,55 @@ function setDpi(mode: string) {
   vpnStore.updateSettings({ dpi_profile: mode as never });
 }
 
+const CALIB_PROVIDERS = [
+  { key: 'cloudflare', label: 'Cloudflare' },
+  { key: 'google', label: 'Google' },
+  { key: 'quad9', label: 'Quad9' },
+  { key: 'adguard', label: 'AdGuard' },
+  { key: 'mullvad', label: 'Mullvad' },
+  { key: 'dns_sbi', label: 'DNS.SB' },
+  { key: 'dns_sby', label: 'ControlD' },
+  { key: 'digitale', label: 'Digitale' },
+  { key: 'yandex', label: 'Yandex' },
+];
+
+const BOOTSTRAP_LIST = [
+  'cloudflare',
+  'quad9',
+  'yandex',
+  'digitale',
+  'google',
+  'mullvad',
+  'dns_sbi',
+  'dns_sby',
+];
+
+function bLabel(key: string): string {
+  return vpnStore._dnsLabel(key, '');
+}
+
+function calibLeftDone(p: { key: string; label: string }): boolean {
+  return vpnStore.calibTried.includes(p.key) && !vpnStore.calibrationStatus.includes(p.label);
+}
+
+function calibRightDone(key: string): boolean {
+  const live = vpnStore.calibrationStatus.includes(vpnStore._bootstrapLabel(key));
+  const seen = vpnStore.calibrationStatus.includes('·');
+  return seen && !live;
+}
+
+const calibStatusText = computed(() => {
+  const s = vpnStore.calibrationStatus;
+  const p = vpnStore.calibProgress;
+  if (!s) return t('calib.settling');
+  return p ? `${t('calib.testing', { name: s })} (${p})` : t('calib.testing', { name: s });
+});
+
+async function runCalibration() {
+  if (vpnStore.dnsCalibrating) return;
+  await vpnStore._startDnsCalibration(false);
+}
+
 function onRetries(event: Event) {
   const raw = Number((event.target as HTMLInputElement).value);
   const safe = Number.isFinite(raw) ? Math.max(0, Math.min(5, Math.round(raw))) : 2;
@@ -3120,6 +3231,14 @@ function onRetries(event: Event) {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.07),
     0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.seg--wrap {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 320px;
+  row-gap: 4px;
+  border-radius: 16px;
 }
 
 .hwid-panel {
@@ -4154,7 +4273,12 @@ html.motion-fancy .pane-leave-active {
 }
 
 .dns-seg {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 380px;
+  row-gap: 4px;
+  border-radius: 16px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
@@ -4163,7 +4287,396 @@ html.motion-fancy .pane-leave-active {
 }
 
 .dns-pill-btn {
-  padding: 0 11px;
+  padding: 0 10px;
+  height: 28px;
+  font-size: 11.5px;
+}
+
+.boot-seg {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  row-gap: 4px;
+  max-width: 340px;
+  padding: 4px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.boot-pill-btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  border-radius: 999px;
+}
+
+.calib-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  background: rgba(167, 139, 250, 0.12);
+  color: #e6dcff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.calib-btn:hover:not(:disabled) {
+  background: rgba(167, 139, 250, 0.2);
+}
+
+.calib-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.calib-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.calib-panel {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 2px 0 10px;
+  padding: 13px 15px;
+  border-radius: 16px;
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  background: rgba(167, 139, 250, 0.05);
+}
+
+.calib-orb {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.calib-orb-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #e6dcff, #a78bfa);
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.8);
+  animation: calib-breath 1.6s ease-in-out infinite;
+}
+
+.calib-orb-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(167, 139, 250, 0.55);
+  animation: calib-ripple 2.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.calib-orb-ring--2 {
+  animation-delay: 1.1s;
+}
+
+@keyframes calib-ripple {
+  from { transform: scale(0.5); opacity: 0.9; }
+  to { transform: scale(1.55); opacity: 0; }
+}
+
+@keyframes calib-breath {
+  from, to { transform: scale(1); }
+  50% { transform: scale(1.22); }
+}
+
+/* ==== Calibration modal (Apple-style blur reveal) ==== */
+.calib-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 5, 8, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.calib-modal {
+  position: relative;
+  width: min(480px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  padding: 20px 22px 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(16, 18, 27, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 30px 90px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.calib-cancel-btn {
+  align-self: center;
+  height: 30px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 138, 146, 0.35);
+  background: rgba(255, 138, 146, 0.08);
+  color: #ff8a92;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.calib-cancel-btn:hover {
+  background: rgba(255, 138, 146, 0.16);
+}
+
+.calib-cancel-btn:active {
+  transform: scale(0.95);
+}
+
+.calib-glow {
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+.calib-glow--a {
+  top: -80px;
+  left: -60px;
+  background: rgba(139, 92, 246, 0.16);
+}
+
+.calib-glow--b {
+  bottom: -90px;
+  right: -70px;
+  background: rgba(56, 130, 205, 0.12);
+}
+
+.calib-modal-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.calib-modal-title {
+  font-size: 14.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+.calib-modal-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: rgba(235, 238, 250, 0.55);
+}
+
+.calib-modal-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(167, 139, 250, 0.85);
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.calib-stage {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  padding: 14px 14px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.calib-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.calib-col-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(235, 238, 250, 0.4);
+  margin-bottom: 3px;
+}
+
+.calib-divider {
+  width: 1px;
+  align-self: stretch;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.calib-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: all 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.calib-step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  flex-shrink: 0;
+  transition: all 260ms ease;
+}
+
+.calib-step-name {
+  font-size: 11px;
+  color: rgba(235, 238, 250, 0.4);
+  transition: color 260ms ease;
+}
+
+.calib-step-check {
+  margin-left: auto;
+  color: #6dd58c;
+  flex-shrink: 0;
+}
+
+.calib-step--idle {
+  opacity: 0.55;
+}
+
+.calib-step--done {
+  opacity: 0.5;
+}
+
+.calib-step--done .calib-step-name {
+  color: rgba(235, 238, 250, 0.26);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 138, 146, 0.45);
+}
+
+.calib-step--done .calib-step-dot {
+  background: rgba(109, 213, 140, 0.6);
+}
+
+.calib-step--live {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(167, 139, 250, 0.1);
+  box-shadow: 0 0 16px rgba(167, 139, 250, 0.22);
+  opacity: 1;
+}
+
+.calib-step--live .calib-step-dot {
+  background: linear-gradient(180deg, #e6dcff, #a78bfa);
+  box-shadow: 0 0 8px rgba(167, 139, 250, 0.9);
+  animation: calib-breath 1.3s ease-in-out infinite;
+}
+
+.calib-step--live .calib-step-name {
+  color: #e6dcff;
+  font-weight: 600;
+}
+
+.calib-step--right {
+  margin-left: auto;
+  max-width: 82%;
+}
+
+.calib-modal-note {
+  position: relative;
+  margin: 0;
+  text-align: center;
+  font-size: 10.5px;
+  color: rgba(235, 238, 250, 0.35);
+}
+
+.calib-modal-enter-active {
+  transition: opacity 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.calib-modal-leave-active {
+  transition: opacity 220ms ease;
+}
+
+.calib-modal-enter-active .calib-modal {
+  transition: transform 420ms cubic-bezier(0.22, 1.2, 0.36, 1), filter 340ms ease;
+}
+
+.calib-modal-enter-from {
+  opacity: 0;
+}
+
+.calib-modal-enter-from .calib-modal {
+  transform: translateY(16px) scale(0.96);
+  filter: blur(8px);
+}
+
+.calib-modal-leave-to {
+  opacity: 0;
+}
+
+.calib-panel-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.calib-panel-status {
+  margin-top: 2px;
+  font-size: 11px;
+  color: rgba(235, 238, 250, 0.55);
+}
+
+.calib-prov-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.calib-prov-chip {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(235, 238, 250, 0.38);
+  transition: all 260ms ease;
+}
+
+.calib-prov-chip--done {
+  color: rgba(235, 238, 250, 0.28);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 138, 146, 0.5);
+}
+
+.calib-prov-chip--live {
+  border-color: #a78bfa;
+  background: rgba(167, 139, 250, 0.16);
+  color: #e6dcff;
+  box-shadow: 0 0 10px rgba(167, 139, 250, 0.35);
 }
 
 .dns-custom-input {

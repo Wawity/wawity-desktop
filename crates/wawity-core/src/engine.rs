@@ -904,7 +904,7 @@ pub fn verify_tunnel_ready(handles: &ConnectionHandles, total: Duration) -> Resu
         if !handles.process_manager.lock().unwrap().is_running() {
             return Err("sing-box died during traffic verification".into());
         }
-        match probe_socks() {
+        match probe_socks(None) {
             Ok(latency) => return Ok(Some(latency)),
             Err(reason) => {
                 if reason != last_probe_error {
@@ -1478,11 +1478,11 @@ pub fn reload_bypass_apps(
     Ok(())
 }
 
-pub fn socks_latency() -> Option<u64> {
-    probe_socks().ok()
+pub fn socks_latency(target: Option<&str>) -> Option<u64> {
+    probe_socks(target).ok()
 }
 
-pub fn probe_socks() -> Result<u64, String> {
+pub fn probe_socks(target: Option<&str>) -> Result<u64, String> {
     use std::io::{Read, Write};
     use std::net::TcpStream;
     let addr: std::net::SocketAddr = format!("127.0.0.1:{}", crate::constants::LOCAL_PROXY_PORT)
@@ -1499,7 +1499,11 @@ pub fn probe_socks() -> Result<u64, String> {
     if greet[0] != 0x05 || greet[1] != 0x00 {
         return Err(format!("socks greeting rejected: {:02x} {:02x}", greet[0], greet[1]));
     }
-    let host = b"cp.cloudflare.com";
+    let default_host = b"cp.cloudflare.com";
+    let host: &[u8] = match target {
+        Some(h) if !h.trim().is_empty() => h.trim().as_bytes(),
+        _ => default_host,
+    };
     let mut req = vec![0x05, 0x01, 0x00, 0x03, host.len() as u8];
     req.extend_from_slice(host);
     req.extend_from_slice(&80u16.to_be_bytes());
@@ -1521,7 +1525,11 @@ pub fn probe_socks() -> Result<u64, String> {
     };
     let mut rest = vec![0u8; skip];
     stream.read_exact(&mut rest).map_err(|e| format!("socks address read: {}", e))?;
-    let request = b"HEAD /generate_204 HTTP/1.1\r\nHost: cp.cloudflare.com\r\nConnection: keep-alive\r\n\r\n";
+    let request = format!(
+        "HEAD /generate_204 HTTP/1.1\r\nHost: {}\r\nConnection: keep-alive\r\n\r\n",
+        std::str::from_utf8(host).unwrap_or("cp.cloudflare.com")
+    );
+    let request = request.as_bytes();
     let mut scratch = [0u8; 512];
     stream.write_all(request).map_err(|e| format!("http request write: {}", e))?;
     drain_http_head(&mut stream, &mut scratch).map_err(|e| format!("no http response: {}", e))?;

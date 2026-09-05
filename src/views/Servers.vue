@@ -20,29 +20,43 @@
     </div>
 
     <div class="add-section">
-      <div class="url-row">
-        <input
-          v-model="importUrl"
-          type="text"
-          :placeholder="t('servers.pasteUrl')"
-          class="url-input"
-          :disabled="fetching"
-          @keydown.enter="fetchSubscription"
-        />
-        <button class="ghost-btn" type="button" @click="pasteUrl">
-          <Clipboard :size="14" />
-        </button>
-        <button
-          class="fetch-btn"
-          type="button"
-          :disabled="!importUrl.trim() || fetching"
-          @click="fetchSubscription"
-        >
-          <Loader2 v-if="fetching" :size="14" class="spin" />
-          <span v-else v-text="t('servers.fetch')" />
-        </button>
+      <button
+        type="button"
+        class="add-toggle-btn"
+        :class="{ 'add-toggle-btn--open': addOpen }"
+        @click="toggleAddSection"
+      >
+        <Plus v-if="!addOpen" :size="14" />
+        <X v-else :size="14" />
+        <span v-text="t('servers.addSubscription')" />
+      </button>
+      <div class="collapse-wrap" :class="{ 'collapse-wrap--open': addOpen }">
+        <div class="collapse-inner">
+          <div class="url-row">
+            <input
+              v-model="importUrl"
+              type="text"
+              :placeholder="t('servers.pasteUrl')"
+              class="url-input"
+              :disabled="fetching"
+              @keydown.enter="fetchSubscription"
+            />
+            <button class="ghost-btn" type="button" @click="pasteUrl">
+              <Clipboard :size="14" />
+            </button>
+            <button
+              class="fetch-btn"
+              type="button"
+              :disabled="!importUrl.trim() || fetching"
+              @click="fetchSubscription"
+            >
+              <Loader2 v-if="fetching" :size="14" class="spin" />
+              <span v-else v-text="t('servers.fetch')" />
+            </button>
+          </div>
+          <p v-if="fetchError" class="fetch-error" v-text="fetchError" />
+        </div>
       </div>
-      <p v-if="fetchError" class="fetch-error" v-text="fetchError" />
     </div>
 
     <Transition name="preview-slide">
@@ -237,7 +251,7 @@
           >
             <component :is="subBadgeGlyph(sub.id)" :size="12" aria-hidden="true" />
           </button>
-          <span class="sub-chip-name" v-text="sub.name" />
+          <span class="sub-chip-name" v-text="sub.name" :class="{ 'sub-chip-name--hidden': vpnStore.isSubHidden(sub.id) }" />
 
           <Transition name="pop">
             <div v-if="badgeEditId === sub.id" class="badge-pop" @click.stop>
@@ -284,6 +298,20 @@
             v-text="expiryLabel(sub)"
           />
           <span v-if="trafficLabel(sub)" class="traffic-badge mono" v-text="trafficLabel(sub)" />
+          <button
+            class="chip-btn"
+            type="button"
+            :class="{ 'chip-btn--muted': vpnStore.isSubHidden(sub.id) }"
+            :title="
+              vpnStore.isSubHidden(sub.id)
+                ? t('servers.showSubTitle')
+                : t('servers.hideSubTitle')
+            "
+            @click="vpnStore.toggleHideSubscription(sub.id)"
+          >
+            <EyeOff v-if="vpnStore.isSubHidden(sub.id)" :size="12" />
+            <Eye v-else :size="12" />
+          </button>
           <button
             class="chip-btn"
             type="button"
@@ -342,6 +370,9 @@ import {
   Shuffle,
   RotateCw,
   Radar,
+  Eye,
+  EyeOff,
+  Plus,
 } from '../lib/appIcons';
 import { readText, writeText } from '@tauri-apps/api/clipboard';
 import { useVpnStore, formatBytes } from '../stores/vpn';
@@ -390,6 +421,7 @@ const importUrl = ref('');
 const fetching = ref(false);
 const fetchError = ref('');
 const query = ref('');
+const addOpen = ref(false);
 const confirmOpen = ref(false);
 const deleteTarget = ref<{ id: string; name: string; count: number } | null>(null);
 const preview = ref<{ name: string; servers: typeof vpnStore.allServers } | null>(null);
@@ -506,11 +538,18 @@ function openConfirm() {
   confirmOpen.value = true;
 }
 
+function toggleAddSection() {
+  addOpen.value = !addOpen.value;
+  if (!addOpen.value) fetchError.value = '';
+}
+
 function addSubscription() {
   if (!preview.value) return;
   vpnStore.addSubscription(importUrl.value.trim(), preview.value.name, preview.value.servers);
   confirmOpen.value = false;
   clearPreview();
+  addOpen.value = false;
+  importUrl.value = '';
 }
 
 function promptDelete(sub: SubscriptionGroup) {
@@ -646,6 +685,66 @@ function subBadgeStyle(id: string) {
   flex-direction: column;
   gap: 8px;
 }
+
+.add-toggle-btn {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px dashed rgba(167, 139, 250, 0.45);
+  background: rgba(167, 139, 250, 0.08);
+  color: #cdbcff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.add-toggle-btn:hover {
+  background: rgba(167, 139, 250, 0.16);
+  color: #e6dcff;
+  transform: translateY(-1px);
+}
+
+.add-toggle-btn:active {
+  transform: scale(0.96);
+}
+
+.add-toggle-btn--open {
+  border-style: solid;
+  background: rgba(167, 139, 250, 0.16);
+  color: #e6dcff;
+}
+
+.collapse-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.collapse-wrap--open {
+  grid-template-rows: 1fr;
+}
+
+.collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.collapse-wrap--open .collapse-inner {
+  padding-bottom: 2px;
+}
+
 .url-row {
   display: flex;
   gap: 6px;
@@ -1100,6 +1199,15 @@ function subBadgeStyle(id: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.sub-chip-name--hidden {
+  opacity: 0.4;
+  text-decoration: line-through;
+  text-decoration-color: rgba(235, 238, 250, 0.35);
+}
+
+.chip-btn--muted {
+  opacity: 0.45;
 }
 .sub-chip-count {
   font-size: 10.5px;

@@ -856,6 +856,9 @@ export const useVpnStore = defineStore('vpn', {
     autoOffLeft: 0,
     smartPicking: false,
     calibrating: false,
+    dnsCalibrating: false,
+    dnsCalibrated: false,
+    suggestDnsFix: false,
     _autoOffTimer: null as ReturnType<typeof setInterval> | null,
     _autoOffBound: false,
     roles: [] as Role[],
@@ -864,6 +867,7 @@ export const useVpnStore = defineStore('vpn', {
     hwid: '' as string,
     serverGroups: [] as ServerGroup[],
     hiddenServers: [] as string[],
+    hiddenSubIds: [] as string[],
     favorites: [] as string[],
     _failoverTries: 0,
     trafficHistory: {} as Record<string, SubTrafficHistory>,
@@ -1091,6 +1095,7 @@ export const useVpnStore = defineStore('vpn', {
       this.loadServerGroups();
       this.loadFavorites();
       this.loadHiddenServers();
+      this._loadDnsWinning();
       this.applyStreamerWatch();
       listen('wawity-tray-sync', () => {
         this.loadSelectedServer();
@@ -1331,6 +1336,419 @@ export const useVpnStore = defineStore('vpn', {
       }
     },
 
+    // ==== DNS auto-calibration ====
+    // RKN-style resolver blackholing: connect succeeds but the tunnel resolver
+    // is dead -> no real internet. Probe actual reachability through the SOCKS
+    // proxy; if dead, walk the resolver × bootstrap matrix and pick a live pair.
+    DNS_CALIBRATION_ORDER: [
+      'cloudflare',
+      'google',
+      'quad9',
+      'adguard',
+      'mullvad',
+      'dns_sbi',
+      'dns_sby',
+      'digitale',
+      'yandex',
+    ] as string[],
+
+    BOOTSTRAP_CALIBRATION_ORDER: [
+      'cloudflare',
+      'quad9',
+      'yandex',
+      'digitale',
+      'google',
+      'mullvad',
+      'dns_sbi',
+      'dns_sby',
+    ] as string[],
+
+    TOP_FALLBACK_RESOLVERS: ['cloudflare', 'yandex', 'quad9'] as string[],
+
+    // Escalation ladder for DPI bypass — start at zero and only climb while the
+    // tunnel stays dead. Every rung is strictly stronger / more invasive than
+    // the previous one, so the client adds as little shaping as possible.
+    DPI_CALIBRATION_LADDER: ['off', 'soft', 'medium', 'hard'] as string[],
+
+    calibrationStatus: '' as string,
+    calibTried: [] as string[],
+    calibProgress: '' as string,
+    dnsProbing: false,
+    calibCancel: false,
+    _dnsWinning: null as { remote: string; bootstrap: string; dpi: string } | null,
+
+    /**
+     * Probe real internet THROUGH the tunnel. Rotates probe hosts so a stale
+     * DNS-cache hit for a single fixed host can't fake "internet alive" while
+     * every real site is dead.
+     */
+    async _probeTunnelInternet(attempts: number): Promise<boolean> {
+      const hosts = ['cp.cloudflare.com', 'www.msftconnecttest.com', 'www.gstatic.com'];
+      for (let i = 0; i < attempts; i++) {
+        let alive = 0;
+        for (const host of hosts) {
+          try {
+            const ms = await invoke<number | null>('measure_tunnel_latency', { host });
+            if (ms !== null && ms !== undefined && ms > 0) alive += 1;
+          } catch {}
+        }
+        if (alive >= 2) return true;
+        if (i + 1 < attempts) await new Promise((r) => setTimeout(r, 1200));
+      }
+      return false;
+    },
+
+    /** Applies one combo (resolver × bootstrap × DPI) and restarts the session. */
+    async _applyDnsCombo(remote: string, bootstrap: string, dpi: string, customDoh?: string) {
+      this.settings.dns_remote = remote as never;
+      this.settings.bootstrap_dns = bootstrap as never;
+      this.settings.dpi_profile = dpi as never;
+      this.settings.dns_custom_doh = customDoh ?? '';
+      this.persistSettings();
+      const serverId = this.selectedServerId;
+      if (!serverId) return;
+      try {
+        // connect_vpn refuses when a session is alive — make every
+        // calibration candidate apply to a genuinely fresh start.
+        await invoke('disconnect_vpn').catch(() => {});
+        await invoke('connect_vpn', {
+          subUrl: this.allServers.find((s) => s.id === serverId)?.url ?? '',
+          entrySubUrl: null,
+          serverName: this.allServers.find((s) => s.id === serverId)?.name ?? null,
+          entryServerName: null,
+          killSwitch: this.settings.kill_switch,
+          bypassApps: this.settings.bypass_apps,
+          quantumResistant: this.settings.quantum_resistant,
+          privacy: {
+            dpi_profile: dpi,
+            strict_route: this.settings.strict_route,
+            allow_insecure_tls: this.settings.allow_insecure_tls,
+            tunnel_own_traffic: this.settings.tunnel_own_traffic,
+            dns_leak_guard: this.settings.dns_leak_guard,
+            bootstrap_dns: bootstrap,
+            dns_remote: remote,
+            dns_custom_doh: customDoh || null,
+            dns_block_ads: this.settings.dns_block_ads !== false,
+            dns_block_trackers: this.settings.dns_block_trackers !== false,
+            route_rules: this.compileRouteRules(),
+            route_all: this.activeRoleObject ? this.activeRoleObject.overrides.route_all : true,
+          },
+        });
+        await this.refreshStatus();
+      } catch {}
+    },
+
+    _loadDnsWinning() {
+      try {
+        const raw = localStorage.getItem('wawity_dns_winner');
+        if (!raw) return;
+        const w = JSON.parse(raw) as { remote?: string; bootstrap?: string; dpi?: string };
+        if (w.remote && w.bootstrap && w.dpi) {
+          this._dnsWinning = { remote: w.remote, bootstrap: w.bootstrap, dpi: w.dpi };
+        }
+      } catch {}
+    },
+
+    _saveDnsWinning(remote: string, bootstrap: string, dpi: string) {
+      this._dnsWinning = { remote, bootstrap, dpi };
+      try {
+        localStorage.setItem(
+          'wawity_dns_winner',
+          JSON.stringify({ remote, bootstrap, dpi }),
+        );
+      } catch {}
+    },
+
+    async _startDnsCalibration(auto: boolean) {
+      if (!this.status.connected) return;
+      const origRemote = this.settings.dns_remote ?? 'cloudflare';
+      const origBootstrap = this.settings.bootstrap_dns ?? 'cloudflare';
+      const origDpi = this.settings.dpi_profile ?? 'off';
+      const origCustom = (this.settings.dns_custom_doh ?? '').trim();
+      if (auto) {
+        // Give the tunnel a moment to settle
+        await new Promise((r) => setTimeout(r, 2500));
+        if (!this.status.connected) return;
+        if (this.dnsProbing || this.dnsCalibrating) return;
+        this.dnsProbing = true;
+        this.suggestDnsFix = false;
+        const { pushToast } = useNotifications();
+        try {
+          const ok = await this._probeTunnelInternet(2);
+          if (ok) {
+            this.dnsCalibrated = true;
+            return;
+          }
+          // Silent self-heal: if a proven winning combo exists and differs from
+          // what is live now — jump straight to it before bothering the user.
+          const w = this._dnsWinning;
+          if (
+            w &&
+            (w.remote !== origRemote || w.bootstrap !== origBootstrap || w.dpi !== origDpi)
+          ) {
+            const cur = `${this._dnsLabel(origRemote, '')} · ${this._bootstrapLabel(origBootstrap)}`;
+            await this._applyDnsCombo(w.remote, w.bootstrap, w.dpi);
+            if (await this._probeTunnelInternet(2)) {
+              this.dnsCalibrated = true;
+              this.suggestDnsFix = false;
+              pushToast(
+                'success',
+                t('calib.done'),
+                t('calib.doneDesc', {
+                  from: cur,
+                  to: `${this._dnsLabel(w.remote, '')} · ${this._bootstrapLabel(w.bootstrap)}`,
+                }),
+                6000,
+              );
+              return;
+            }
+          }
+          // Resolver is likely dead: surface the banner, offline calibration
+          // stays explicit so the user sees what is happening.
+          this.suggestDnsFix = true;
+        } finally {
+          this.dnsProbing = false;
+        }
+        return;
+      }
+      // Manual FULL calibration — smart escalating loop.
+      //
+      // Never stacks more shaping than it has to: each phase only kicks in if
+      // everything before it failed. The board stops as soon as real internet
+      // is confirmed through the tunnel.
+      //
+      //   Escalation L0: proven winner combo     (from previous calibration)
+      //   Escalation L1: swap tunnel resolver    (same bootstrap, same DPI)
+      //   Escalation L2: swap bootstrap DNS      (×3 top resolvers)
+      //   Escalation L3: escalate DPI profile    (off → soft → medium → hard)
+      //                     × original pair, then best-known safe pair
+      this.suggestDnsFix = false;
+      this.dnsCalibrating = true;
+      this.calibTried = [];
+      this.calibrationStatus = '';
+      this.calibProgress = '';
+      this.calibCancel = false;
+      const { pushToast } = useNotifications();
+      let restored = false;
+      let cancelled = false;
+      try {
+        const totalSteps =
+          this.DNS_CALIBRATION_ORDER.length +
+          (this.BOOTSTRAP_CALIBRATION_ORDER.length - 1) * this.TOP_FALLBACK_RESOLVERS.length +
+          (this.DPI_CALIBRATION_LADDER.length - 1);
+        let step = 0;
+        const sameAsOriginal = (remote: string, bootstrap: string, dpi: string) =>
+          remote === origRemote && bootstrap === origBootstrap && dpi === origDpi && !origCustom;
+        /** 'cancel' means: user hit Stop — unwind to the original trio. */
+        const cancelled = () => this.calibCancel || !this.status.connected;
+
+        const combo = async (
+          remote: string,
+          bootstrap: string,
+          dpi: string,
+        ): Promise<'ok' | 'dead' | 'cancel'> => {
+          if (cancelled()) return 'cancel';
+          const nice =
+            `${this._dnsLabel(remote, '')} · ${this._bootstrapLabel(bootstrap)}` +
+            (dpi !== 'off' ? ` · ${this._dpiLabel(dpi)}` : '');
+          this.calibrationStatus = nice;
+          step += 1;
+          this.calibProgress = `${step}/${totalSteps}`;
+          this.calibTried = [...this.calibTried, remote];
+          await this._applyDnsCombo(remote, bootstrap, dpi);
+          if (cancelled()) return 'cancel';
+          return (await this._probeTunnelInternet(2)) ? 'ok' : 'dead';
+        };
+
+        // ---- Escalation L0: jump straight to the proven winner if known ----
+        const w = this._dnsWinning;
+        if (w && !sameAsOriginal(w.remote, w.bootstrap, w.dpi)) {
+          const r0 = await combo(w.remote, w.bootstrap, w.dpi);
+          if (r0 === 'ok') {
+            this._calibSuccess(pushToast, origRemote, origBootstrap, origDpi, w.remote, w.bootstrap, w.dpi);
+            return;
+          }
+          if (r0 === 'cancel') {
+            await this._restoreOriginal(pushToast, origRemote, origBootstrap, origDpi, origCustom, true);
+            restored = true;
+            return;
+          }
+        } else if (w) {
+          // Winner already equals the live (broken) config — drop the stale memory.
+          this._dnsWinning = null;
+        }
+
+        // ---- Escalation L1: resolver sweep (bootstrap + DPI unchanged) ----
+        for (const r of this.DNS_CALIBRATION_ORDER) {
+          const res = await combo(r, origBootstrap, origDpi);
+          if (res === 'ok') {
+            this._calibSuccess(pushToast, origRemote, origBootstrap, origDpi, r, origBootstrap, origDpi);
+            return;
+          }
+          if (res === 'cancel') break;
+        }
+        if (cancelled()) {
+          await this._restoreOriginal(pushToast, origRemote, origBootstrap, origDpi, origCustom, true);
+          restored = true;
+          return;
+        }
+
+        // ---- Escalation L2: swap bootstrap × top resolvers ----
+        outerL2: for (const b of this.BOOTSTRAP_CALIBRATION_ORDER) {
+          if (b === origBootstrap) continue;
+          for (const r of this.TOP_FALLBACK_RESOLVERS) {
+            const res = await combo(r, b, origDpi);
+            if (res === 'ok') {
+              this._calibSuccess(pushToast, origRemote, origBootstrap, origDpi, r, b, origDpi);
+              return;
+            }
+            if (res === 'cancel') break outerL2;
+          }
+        }
+        if (cancelled()) {
+          await this._restoreOriginal(pushToast, origRemote, origBootstrap, origDpi, origCustom, true);
+          restored = true;
+          return;
+        }
+
+        // ---- Escalation L3: DPI ladder, everything else kept original ----
+        // First isolate DPI as the culprit: escalate shaping while keeping the
+        // user's own DNS pair. Then one last try on the strongest known-safe
+        // pair (cloudflare × yandex) for each DPI rung.
+        outerL3: for (const dpi of this.DPI_CALIBRATION_LADDER) {
+          if (dpi === origDpi) continue;
+          const res = await combo(origRemote, origBootstrap, dpi);
+          if (res === 'ok') {
+            this._calibSuccess(pushToast, origRemote, origBootstrap, origDpi, origRemote, origBootstrap, dpi);
+            return;
+          }
+          if (res === 'cancel') break outerL3;
+        }
+        if (cancelled()) {
+          await this._restoreOriginal(pushToast, origRemote, origBootstrap, origDpi, origCustom, true);
+          restored = true;
+          return;
+        }
+        outerL3b: for (const dpi of this.DPI_CALIBRATION_LADDER) {
+          const res = await combo('cloudflare', 'yandex', dpi);
+          if (res === 'ok') {
+            this._calibSuccess(pushToast, origRemote, origBootstrap, origDpi, 'cloudflare', 'yandex', dpi);
+            return;
+          }
+          if (res === 'cancel') break outerL3b;
+        }
+
+        // Nothing helped — restore the user's original trio (incl. Custom DoH)
+        restored = true;
+        this.calibrationStatus = `${this._dnsLabel(origRemote, '')} · ${this._bootstrapLabel(origBootstrap)}`;
+        await this._applyDnsCombo(origRemote, origBootstrap, origDpi, origCustom);
+        this.calibrationStatus = '';
+        pushToast('warning', t('calib.fail'), t('calib.failDesc'), 8000);
+      } finally {
+        this.dnsCalibrating = false;
+        this.calibrationStatus = '';
+        this.calibTried = [];
+        this.calibProgress = '';
+        // Safety net: if calibration was interrupted (disconnect, app state
+        // changed) without reaching the restore branch, put the original
+        // combo back so settings are never left on a dead candidate.
+        if (!restored) {
+          const live = {
+            remote: (this.settings.dns_remote ?? 'cloudflare') as string,
+            bootstrap: (this.settings.bootstrap_dns ?? 'cloudflare') as string,
+            dpi: (this.settings.dpi_profile ?? 'off') as string,
+          };
+          const dirty =
+            live.remote !== origRemote ||
+            live.bootstrap !== origBootstrap ||
+            live.dpi !== origDpi ||
+            (this.settings.dns_custom_doh ?? '') !== origCustom;
+          if (dirty) {
+            void this._applyDnsCombo(origRemote, origBootstrap, origDpi, origCustom);
+          }
+        }
+      }
+    },
+
+    _restoreOriginal(
+      pushToast: (v: 'info' | 'success' | 'error' | 'warning', t: string, d: string, ms: number) => void,
+      remote: string,
+      bootstrap: string,
+      dpi: string,
+      customDoh: string,
+      wasCancelled: boolean,
+    ) {
+      if (wasCancelled) {
+        pushToast('info', t('calib.cancelled'), t('calib.cancelledDesc'), 5000);
+      }
+      void this._applyDnsCombo(remote, bootstrap, dpi, customDoh);
+    },
+
+    _calibSuccess(
+      pushToast: (v: 'info' | 'success' | 'error' | 'warning', t: string, d: string, ms: number) => void,
+      oR: string, oB: string, oD: string,
+      nR: string, nB: string, nD: string,
+    ) {
+      this.dnsCalibrated = true;
+      this.suggestDnsFix = false;
+      this._saveDnsWinning(nR, nB, nD);
+      const changed = oR !== nR || oB !== nB || oD !== nD;
+      if (!changed) {
+        pushToast('success', t('calib.done'), t('calib.sameDesc', { to: this._dnsLabel(nR, '') }), 6000);
+        return;
+      }
+      pushToast(
+        'success',
+        t('calib.done'),
+        t('calib.doneDesc', {
+          from: `${this._dnsLabel(oR, '')} · ${this._bootstrapLabel(oB)}`,
+          to: `${this._dnsLabel(nR, '')} · ${this._bootstrapLabel(nB)} · ${this._dpiNice(nD)}`,
+        }),
+        6000,
+      );
+    },
+
+    _dpiNice(dpi: string): string {
+      const map: Record<string, string> = { off: 'DPI off', soft: 'DPI soft', medium: 'DPI medium', hard: 'DPI hard' };
+      return map[dpi] ?? dpi;
+    },
+
+    /** Auto sweep after connect — silent probe only, no switching. */
+    async _autoProbeAfterConnect() {
+      await this._startDnsCalibration(true);
+    },
+
+    _dnsLabel(key: string, custom: string): string {
+      if (custom) return 'Custom DoH';
+      const map: Record<string, string> = {
+        cloudflare: 'Cloudflare',
+        google: 'Google',
+        quad9: 'Quad9',
+        adguard: 'AdGuard',
+        mullvad: 'Mullvad',
+        dns_sbi: 'DNS.SB',
+        dns_sby: 'ControlD',
+        digitale: 'Digitale',
+        yandex: 'Yandex',
+      };
+      return map[key] ?? key;
+    },
+
+    _bootstrapLabel(key: string): string {
+      return this._dnsLabel(key, '');
+    },
+
+    async _probeTunnelInternet(attempts: number): Promise<boolean> {
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const ms = await invoke<number | null>('measure_tunnel_latency');
+          if (ms !== null && ms !== undefined && ms > 0) return true;
+        } catch {}
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+      return false;
+    },
+
     async connect(serverId?: string) {
       
       
@@ -1398,6 +1816,7 @@ export const useVpnStore = defineStore('vpn', {
           multihop: this.settings.multihop_enabled,
           protocol: this.settings.protocol,
         });
+        this._autoProbeAfterConnect();
       } catch (err) {
         this.connectError = String(err);
         track('vpn_connect_failed', { reason: String(err).slice(0, 120) });
@@ -1599,6 +2018,7 @@ export const useVpnStore = defineStore('vpn', {
       if (!this.settings.auto_connect || !this.selectedServerId) return;
       
       if (this._disconnectIntent) return;
+      if (this.dnsCalibrating || this.dnsProbing) return;
       if (this._reconnectTimer || this.loading || this.status.connected) return;
       if (this.settings.always_on !== true && navigator.onLine === false) return;
       this._wasConnectedBeforeSleep = true;
@@ -2743,6 +3163,13 @@ export const useVpnStore = defineStore('vpn', {
           this.hiddenServers = Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
         }
       } catch {}
+      try {
+        const rawSubs = localStorage.getItem('wawity_hidden_subs');
+        if (rawSubs) {
+          const parsed = JSON.parse(rawSubs) as string[];
+          this.hiddenSubIds = Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+        }
+      } catch {}
     },
 
     toggleHideServer(serverId: string) {
@@ -2754,6 +3181,25 @@ export const useVpnStore = defineStore('vpn', {
       try {
         localStorage.setItem('wawity_hidden_servers', JSON.stringify(this.hiddenServers));
       } catch {}
+    },
+
+    isSubHidden(subId: string) {
+      return this.hiddenSubIds.includes(subId);
+    },
+
+    toggleHideSubscription(subId: string) {
+      if (this.hiddenSubIds.includes(subId)) {
+        this.hiddenSubIds = this.hiddenSubIds.filter((id) => id !== subId);
+      } else {
+        this.hiddenSubIds = [...this.hiddenSubIds, subId];
+      }
+      try {
+        localStorage.setItem('wawity_hidden_subs', JSON.stringify(this.hiddenSubIds));
+      } catch {}
+    },
+
+    visibleSubscriptions(): SubscriptionGroup[] {
+      return this.subscriptions.filter((s) => !this.hiddenSubIds.includes(s.id));
     },
 
     persistFavorites() {

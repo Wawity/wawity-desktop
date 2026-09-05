@@ -126,10 +126,13 @@ export function groupServers(
   subs: SubscriptionGroup[],
   query: string,
   lang: string,
+  hiddenSubIds?: string[],
 ): CountryBucket[] {
   const needle = query.trim().toLowerCase();
+  const hidden = hiddenSubIds ?? [];
   const byCode = new Map<string, ServerEntry[]>();
   for (const sub of subs) {
+    if (hidden.includes(sub.id)) continue;
     for (const srv of sub.servers) {
       if (
         needle &&

@@ -126,13 +126,13 @@ void main() {
   col += vec3(0.60, 0.78, 1.0) * beamGlow * (1.1 + 1.0 * flash);
   col += vec3(0.52, 0.60, 1.0) * halo;
   col += vec3(0.45, 0.85, 0.95) * rings * 0.5;
-  col += vec3(0.34, 0.29, 0.60) * windA * 0.36;
-  col += vec3(0.15, 0.23, 0.44) * windB * 0.30;
-  col += vec3(0.80, 0.86, 1.0) * shell * 0.5;
+  col += vec3(0.20, 0.19, 0.34) * windA * 0.16;
+  col += vec3(0.09, 0.13, 0.24) * windB * 0.13;
+  col += vec3(0.80, 0.86, 1.0) * shell * 0.28;
 
-  float sky = stars(uv, 46.0, 0.993) + stars(uv + 31.7, 130.0, 0.996) * 0.7;
-  col += vec3(0.90, 0.93, 1.0) * sky * 0.75;
-  col += vec3(0.50, 0.62, 1.0) * flash * 0.045;
+  float sky = stars(uv, 46.0, 0.994) + stars(uv + 31.7, 130.0, 0.997) * 0.6;
+  col += vec3(0.90, 0.93, 1.0) * sky * 0.55;
+  col += vec3(0.50, 0.62, 1.0) * flash * 0.03;
 
   col *= 1.0 + 0.05 * (noise(vec2(time * 9.0, 3.7)) - 0.5);
 

@@ -156,13 +156,16 @@ pub async fn list_processes() -> Result<Vec<ProcessEntry>, String> {
 }
 
 #[tauri::command]
-pub async fn measure_tunnel_latency(state: State<'_, AppState>) -> Result<Option<u64>, String> {
+pub async fn measure_tunnel_latency(
+    state: State<'_, AppState>,
+    host: Option<String>,
+) -> Result<Option<u64>, String> {
     let connected = match state.process_manager.try_lock() {
         Ok(pm) => pm.is_running(),
         Err(_) => return Ok(None),
     };
     if !connected { return Ok(None); }
-    tokio::task::spawn_blocking(socks_latency)
+    tokio::task::spawn_blocking(move || socks_latency(host.as_deref()))
         .await
         .map_err(|e| e.to_string())
 }

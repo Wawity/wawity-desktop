@@ -161,6 +161,32 @@
     </div>
 
     <p v-if="vpnStore.connectError" class="error-msg" v-text="vpnStore.connectError"></p>
+
+    <!-- No ping while connected -> suggest DNS calibration -->
+    <Transition name="fade-up">
+      <div
+        v-if="vpnStore.status.connected && !vpnStore.dnsCalibrating && !vpnStore.dnsProbing && !vpnStore.currentPingMs && !vpnStore.suggestDnsFix"
+        class="calib-row"
+      >
+        <Signal :size="13" class="calib-row-icon" />
+        <span class="calib-row-text" v-text="t('calib.noPing')" />
+        <button type="button" class="calib-btn" @click="goCalibration">
+          <Radar :size="12" />
+          <span v-text="t('calib.fix')" />
+        </button>
+      </div>
+    </Transition>
+
+    <!-- Indexed banner: jump to security settings where the modal runs -->
+    <Transition name="fade-up">
+      <div v-if="vpnStore.suggestDnsFix && vpnStore.status.connected" class="calib-row calib-row--warn">
+        <ShieldAlert :size="13" class="calib-row-icon" />
+        <span class="calib-row-text" v-text="t('calib.suggest')" />
+        <button type="button" class="calib-btn" @click="goCalibration">
+          <span v-text="t('calib.fix')" />
+        </button>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -181,6 +207,9 @@ import {
   Copy,
   Check,
   EyeOff,
+  X,
+  Loader2,
+  Radar,
 } from '../lib/appIcons';
 import { useVpnStore } from '../stores/vpn';
 import { useAppIcon } from '../composables/useAppIcon';
@@ -260,6 +289,10 @@ async function copyServerAddress() {
       serverCopied.value = false;
     }, 1600);
   } catch {}
+}
+
+async function goCalibration() {
+  await router.push('/settings?tab=security&calibrate=1');
 }
 
 function startStages() {
@@ -839,13 +872,77 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-.error-msg {
-  max-width: 380px;
+.error-msg {  max-width: 380px;
   font-size: 12.5px;
   color: var(--destructive);
   text-align: center;
   margin: 0;
 }
+
+.calib-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 211, 106, 0.25);
+  background: rgba(240, 211, 106, 0.06);
+  color: #f0d36a;
+  font-size: 12px;
+}
+
+.calib-row-icon {
+  flex-shrink: 0;
+}
+
+.calib-row-text {
+  flex: 1;
+  text-align: left;
+}
+
+.calib-row--warn {
+  max-width: 460px;
+  border-radius: 14px;
+}
+
+.calib-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 211, 106, 0.4);
+  background: rgba(240, 211, 106, 0.13);
+  color: #ffe9a8;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.calib-btn:hover {
+  background: rgba(240, 211, 106, 0.22);
+}
+
+.calib-btn:active {
+  transform: scale(0.95);
+}
+
+.spin {
+  animation: rotate 0.8s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.fade-up-enter-active { transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1), transform 320ms cubic-bezier(0.34, 1.3, 0.64, 1); }
+.fade-up-leave-active { transition: opacity 160ms ease; }
+.fade-up-enter-from,
+.fade-up-leave-to { opacity: 0; transform: translateY(-6px) scale(0.985); }
 
 .ping-good {
   color: var(--success);

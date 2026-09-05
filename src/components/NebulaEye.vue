@@ -277,9 +277,9 @@ void main() {
 
   float skyReach = 1.0 - smoothstep(1.1, 2.0, aim);
   vec2 sky = vec2(atan(rd.x, rd.z), rd.y);
-  float glint = stars(sky, 42.0, 0.994) + stars(sky + 31.7, 120.0, 0.9965) * 0.6;
-  vec3 dust = vec3(0.30, 0.24, 0.44) * fbm(sky * 2.2 + time * 0.006) * 0.22;
-  vec3 back = (dust + vec3(0.90, 0.93, 1.0) * glint * 0.85) * skyReach * (1.0 - alpha);
+  float glint = stars(sky, 42.0, 0.995) + stars(sky + 31.7, 120.0, 0.9975) * 0.5;
+  vec3 dust = vec3(0.10, 0.08, 0.16) * fbm(sky * 2.2 + time * 0.006) * 0.10;
+  vec3 back = (dust + vec3(0.90, 0.93, 1.0) * glint * 0.6) * skyReach * (1.0 - alpha);
   col += back;
   alpha = clamp(alpha + dot(back, vec3(0.299, 0.587, 0.114)) * 1.6, 0.0, 1.0);
 

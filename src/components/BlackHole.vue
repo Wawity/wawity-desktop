@@ -5,7 +5,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 
-const props = defineProps<{ active: boolean; detail?: string }>();
+const props = defineProps<{ active: boolean }>();
 
 const pane = ref<HTMLCanvasElement | null>(null);
 const ready = ref(false);
@@ -172,168 +172,19 @@ void main(){
   vec3 col=acc;
   if(captured<0.5){
     vec3 dome=normalize(v);
-    vec3 neb=vec3(0.35,0.25,0.55)*fbm3(dome*2.6)+vec3(0.15,0.22,0.45)*fbm3(dome*1.3);
-    float glint=starfield(dome,46.0,0.993,0.0)+starfield(dome,130.0,0.996,31.7)*0.7;
+    vec3 neb=vec3(0.13,0.09,0.24)*fbm3(dome*2.6)+vec3(0.05,0.08,0.18)*fbm3(dome*1.3);
+    float glint=starfield(dome,46.0,0.9945,0.0)+starfield(dome,130.0,0.997,31.7)*0.6;
     float skyReach=1.0-smoothstep(0.18,0.46,aim);
-    col+=(neb*0.4+vec3(0.9,0.93,1.0)*glint*0.8)*skyReach*trans;
-    vec3 nebFar=vec3(0.30,0.24,0.50)*fbm3(dome*2.4+5.0)+vec3(0.13,0.20,0.40)*fbm3(dome*1.2+9.4);
-    float glintFar=starfield(dome,96.0,0.9935,11.3)+starfield(dome,224.0,0.996,57.9)*0.7;
-    col+=(nebFar*0.65+vec3(0.9,0.93,1.0)*glintFar*1.1)*(1.0-skyReach)*trans;
+    col+=(neb*0.35+vec3(0.9,0.93,1.0)*glint*0.55)*skyReach*trans;
+    vec3 nebFar=vec3(0.11,0.09,0.22)*fbm3(dome*2.4+5.0)+vec3(0.05,0.07,0.16)*fbm3(dome*1.2+9.4);
+    float glintFar=starfield(dome,96.0,0.9955,11.3)+starfield(dome,224.0,0.9975,57.9)*0.6;
+    col+=(nebFar*0.55+vec3(0.9,0.93,1.0)*glintFar*0.75)*(1.0-skyReach)*trans;
   }
   col=1.0-exp(-col);
-  float vin=0.60+0.40*(1.0-smoothstep(0.62,1.6,aim));
+  float vin=0.52+0.48*(1.0-smoothstep(0.55,1.5,aim));
   col*=vin;
   float lum=dot(col,vec3(0.299,0.587,0.114));
   float alpha=clamp(lum*1.7+captured*0.9*(1.0-smoothstep(0.75,1.5,aim)),0.0,1.0);
-  gl_FragColor=vec4(col,alpha);
-}
-`;
-const sceneDetSrc = `precision highp float;
-uniform vec2 res;
-uniform float time;
-uniform vec2 drift;
-
-const float DIN=2.6;
-const float DOUT=12.0;
-
-mat2 rot2(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
-float hash(vec2 s){return fract(sin(dot(s,vec2(127.1,311.7)))*43758.5453);}
-float noise(vec2 p){
-  vec2 i=floor(p),f=fract(p);
-  f=f*f*(3.0-2.0*f);
-  float a=hash(i),b=hash(i+vec2(1.0,0.0)),c=hash(i+vec2(0.0,1.0)),d=hash(i+vec2(1.0,1.0));
-  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
-}
-float fbm(vec2 s){float v=0.0,a=0.5;for(int i=0;i<6;i++){v+=a*noise(s);s=s*2.03+vec2(19.7,7.3);a*=0.5;}return v;}
-
-vec3 bbody(float k){
-  vec3 c=mix(vec3(0.10,0.04,0.012),vec3(0.45,0.18,0.05),smoothstep(0.0,0.3,k));
-  c=mix(c,vec3(0.92,0.50,0.14),smoothstep(0.3,0.58,k));
-  c=mix(c,vec3(1.15,0.84,0.42),smoothstep(0.58,0.85,k));
-  c=mix(c,vec3(1.30,1.14,0.82),smoothstep(0.85,1.2,k));
-  return c;
-}
-
-float diskH(float r){return 0.10+0.42*smoothstep(DIN,DOUT,r);}
-
-vec3 diskField(vec3 pos,float t){
-  float r=length(pos.xz);
-  float ang=atan(pos.z,pos.x);
-  float lr=log(r);
-  float phase=ang+t*0.55/pow(r,1.5);
-  float n1=fbm(vec2(lr*6.5,phase*2.1));
-  float n2=fbm(vec2(lr*15.0+13.7,phase*3.4+5.0));
-  float n3=fbm(vec2(lr*30.0+7.1,phase*5.5+2.0));
-  float fil=n1*0.5+n2*0.32+n3*0.18;
-  float env=smoothstep(DIN*0.98,DIN*1.3,r)*(1.0-smoothstep(DOUT*0.55,DOUT,r));
-  float dens=smoothstep(0.30,0.74,fil)*env;
-  float dl=fbm(vec2(lr*9.0+51.0,phase*2.8+9.0))*0.72+n2*0.28;
-  float dust=smoothstep(0.58,0.86,dl)*smoothstep(DIN*1.25,DIN*2.2,r)*(1.0-smoothstep(DOUT*0.6,DOUT,r));
-  float hprof=exp(-pow(pos.y/diskH(r),2.0)*3.0);
-  return vec3(dens*hprof,dust*hprof,fil);
-}
-
-void main(){
-  vec2 sc=(gl_FragCoord.xy - res*vec2(0.80,0.56))/min(res.x,res.y);
-  sc=rot2(-0.22)*sc;
-  float t=time;
-  float sway=drift.x,nod=drift.y;
-
-  float dist=25.0;
-  float yaw=0.14*sin(t*0.019)+sway*0.07;
-  float pitch=0.21+0.035*sin(t*0.011+1.5)+nod*0.045;
-
-  vec3 ro=vec3(dist*cos(pitch)*sin(yaw),dist*sin(pitch),-dist*cos(pitch)*cos(yaw));
-  vec3 fw=normalize(-ro);
-  vec3 rt=normalize(cross(fw,vec3(0.0,1.0,0.0)));
-  vec3 up=cross(rt,fw);
-  vec3 rd=normalize(fw*1.75+rt*sc.x+up*sc.y);
-
-  vec3 p=ro;vec3 v=rd;
-  vec3 hv=cross(p,v);float h2=dot(hv,hv);
-
-  vec3 acc=vec3(0.0);
-  float trans=1.0;
-  float captured=0.0;
-  float minR=1e4;
-  float prevY=p.y;
-  float orderW=1.0;
-  float winds=0.0;
-
-  for(int i=0;i<300;i++){
-    float r2=dot(p,p);
-    if(r2<1.0){captured=1.0;break;}
-    if(r2>2500.0)break;
-    float r=sqrt(r2);
-    minR=min(minR,r);
-    float rrPre=length(p.xz);
-    float dt=0.045*r;
-    if(abs(p.y)<diskH(rrPre)+0.35&&rrPre<DOUT+1.0)dt=min(dt,0.06);
-    dt=min(dt,0.55);
-    v+=-1.5*h2*p/(r2*r2*r)*dt;
-    p+=v*dt;
-
-    if(prevY*p.y<0.0){
-      winds+=1.0;
-      if(winds>6.0)break;
-      if(winds>2.0)orderW*=0.55;
-    }
-    prevY=p.y;
-
-    float rr=length(p.xz);
-    if(trans>0.02&&rr>DIN*0.95&&rr<DOUT&&abs(p.y)<diskH(rr)+0.05){
-      vec3 df=diskField(p,t);
-      float dens=df.x,dust=df.y;
-      if(dens+dust>0.003){
-        float dop=dot(normalize(vec3(-p.z,0.0,p.x)),normalize(v));
-        float beta=0.55/sqrt(max(rr,1.6));
-        float dl=1.0/(1.0-beta*dop);
-        float beam=pow(clamp(dl,0.45,2.2),3.0)*0.42;
-        float gred=sqrt(max(1.0-1.0/max(rr,1.05),0.05));
-        float k=clamp(pow(1.0-(rr-DIN)/(DOUT-DIN),1.4),0.0,1.0);
-        k=k*(0.55+0.5*df.z)+0.25*(dl-1.0);
-        float hot=1.0+3.0*exp(-(rr-DIN)*1.1);
-        vec3 tint=bbody(clamp(k,0.0,1.25));
-        trans*=exp(-(dens*2.8+dust*5.5)*dt);
-        acc+=tint*dens*beam*gred*hot*trans*dt*5.2*orderW;
-        acc+=vec3(0.32,0.12,0.045)*dust*beam*0.35*trans*dt*5.2*orderW;
-      }
-    }
-  }
-
-  vec3 col=acc;
-  float aim=length(sc);
-
-  float ring=exp(-pow((minR-1.5)*5.0,2.0))*(1.0-captured);
-  col+=vec3(1.18,0.92,0.52)*ring*0.9;
-
-  if(captured<0.5){
-    vec3 d=normalize(v);
-    vec2 sph=vec2(atan(d.z,d.x)*3.2,asin(clamp(d.y,-1.0,1.0))*6.4);
-    float st=0.0;
-    for(int L=0;L<2;L++){
-      vec2 g=sph*(18.0+22.0*float(L))+vec2(7.7*float(L),3.1);
-      vec2 cid=floor(g),cf=fract(g);
-      float hs=hash(cid);
-      vec2 spos=vec2(hash(cid+11.0),hash(cid+37.0));
-      float dstar=length(cf-spos);
-      float bri=smoothstep(0.92,1.0,hs);
-      st+=bri*exp(-dstar*dstar*90.0)*(0.5+0.5*sin(t*(0.6+hs)+hs*31.0));
-    }
-    float chrom=fbm(sph*1.7)-0.5;
-    vec3 stc=mix(vec3(0.80,0.90,1.15),vec3(1.10,0.92,0.80),chrom+0.5);
-    col+=stc*st*0.85*trans;
-    col+=vec3(0.10,0.06,0.05)*fbm(sph*2.3+4.0)*0.20*trans;
-  }
-
-  float ux=gl_FragCoord.x/res.x;
-  float uy=gl_FragCoord.y/res.y;
-  float mist=fbm(vec2(ux*3.2+t*0.008,uy*2.4-t*0.004));
-  float glow=exp(-uy*3.6)*(0.5+0.5*mist);
-  col+=vec3(0.05,0.16,0.26)*glow*1.15;
-
-  float lum=dot(col,vec3(0.299,0.587,0.114));
-  float alpha=clamp(lum*1.5+captured*0.9*(1.0-smoothstep(0.75,1.5,aim))+glow*0.55,0.0,1.0);
   gl_FragColor=vec4(col,alpha);
 }
 `;
@@ -365,152 +216,6 @@ void main(){
   col+=(hash(gl_FragCoord.xy+fract(time*0.25)*61.7)-0.5)*0.010;
   float alpha=clamp(base.a*1.05+dot(bl,vec3(0.299,0.587,0.114))*1.4,0.0,1.0);
   alpha*=shade;
-  gl_FragColor=vec4(col*alpha,alpha);
-}
-`;
-
-const sceneNewSrc = `precision highp float;
-uniform vec2 res;
-uniform float time;
-uniform vec2 drift;
-
-float hash(vec2 s){return fract(sin(dot(s,vec2(127.1,311.7)))*43758.5453123);}
-float hash3(vec3 s){return fract(sin(dot(s,vec3(127.1,311.7,74.7)))*43758.5453123);}
-float noise(vec2 s){
-  vec2 i=floor(s);vec2 f=fract(s);vec2 u=f*f*(3.0-2.0*f);
-  return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x),u.y);
-}
-float noise3(vec3 s){
-  vec3 i=floor(s);vec3 f=fract(s);vec3 u=f*f*(3.0-2.0*f);
-  float a=mix(hash3(i),hash3(i+vec3(1.0,0.0,0.0)),u.x);
-  float b=mix(hash3(i+vec3(0.0,1.0,0.0)),hash3(i+vec3(1.0,1.0,0.0)),u.x);
-  float c=mix(hash3(i+vec3(0.0,0.0,1.0)),hash3(i+vec3(1.0,0.0,1.0)),u.x);
-  float d=mix(hash3(i+vec3(0.0,1.0,1.0)),hash3(i+vec3(1.0,1.0,1.0)),u.x);
-  return mix(mix(a,b,u.y),mix(c,d,u.y),u.z);
-}
-float fbm(vec2 s){
-  float acc=0.0;float amp=0.5;
-  for(int i=0;i<4;i++){acc+=amp*noise(s);s=s*2.07+vec2(13.7,5.3);amp*=0.5;}
-  return acc;
-}
-float fbm3(vec3 s){
-  float acc=0.0;float amp=0.5;
-  for(int i=0;i<5;i++){acc+=amp*noise3(s);s=s*2.03+vec3(19.7,7.3,11.1);amp*=0.5;}
-  return acc;
-}
-float starfield(vec3 dir,float cells,float cut,float sd){
-  vec3 cell=floor(dir*cells)+0.5;
-  if(hash3(cell+sd)<cut){return 0.0;}
-  vec3 jitter=vec3(hash3(cell+sd+7.3),hash3(cell+sd+3.1),hash3(cell+sd+1.7))-0.5;
-  float ang=max(dot(normalize(cell+jitter),dir),0.0);
-  return exp(-(1.0-ang)*480.0*cells*cells);
-}
-float stars(vec2 q,float cells,float cut){
-  vec2 cell=floor(q*cells);
-  float seed=hash(cell);
-  if(seed<cut)return 0.0;
-  vec2 pos=fract(q*cells)-vec2(hash(cell+7.3),hash(cell+3.1));
-  return exp(-dot(pos,pos)*240.0);
-}
-
-const float DIN=2.35;
-const float DOUT=11.0;
-
-vec3 bb(float t){
-  vec3 c=mix(vec3(0.32,0.05,0.02),vec3(1.05,0.32,0.08),smoothstep(0.0,0.45,t));
-  c=mix(c,vec3(1.25,0.78,0.42),smoothstep(0.45,0.78,t));
-  c=mix(c,vec3(1.35,1.18,1.02),smoothstep(0.78,1.0,t));
-  return c;
-}
-
-float streaks(vec3 hp,float rr){
-  float om=0.55/pow(rr,1.5);
-  float a=atan(hp.z,hp.x)-time*om;
-  vec3 q=vec3(cos(a)*1.6,sin(a)*1.6,rr*0.85);
-  float n=noise3(q*2.0)*0.55+noise3(q*4.0+vec3(9.7))*0.30+noise3(q*8.0+vec3(23.1))*0.15;
-  return n*n*1.6;
-}
-
-float diskShine(vec3 hp,float rr){
-  float f=smoothstep(DIN,DIN*1.22,rr)*(1.0-smoothstep(DOUT*0.42,DOUT*0.95,rr));
-  if(f<=0.0)return 0.0;
-  return f*(0.45+0.95*streaks(hp,rr));
-}
-
-void main(){
-  vec2 uv=(gl_FragCoord.xy/res-vec2(0.71,0.54))*vec2(res.x/res.y,1.0);
-  uv+=drift*0.05;
-  float aim=length(uv);
-
-  float yaw=0.16*sin(time*0.017);
-  float pitch=0.34+0.045*sin(time*0.011+1.3);
-  float cy=cos(yaw);float sy=sin(yaw);float cp=cos(pitch);float sp=sin(pitch);
-  vec3 ro=vec3(sy*cp,sp,-cy*cp)*26.0;
-  vec3 fw=normalize(-ro);
-  vec3 rt=normalize(cross(vec3(0.0,1.0,0.0),fw));
-  vec3 up=cross(fw,rt);
-  vec3 v=normalize(fw*1.6+rt*uv.x+up*uv.y);
-  vec3 p=ro;
-
-  vec3 acc=vec3(0.0);
-  float trans=1.0;
-  float captured=0.0;
-
-  for(int i=0;i<180;i++){
-    float r2=dot(p,p);
-    float r=sqrt(r2);
-    if(r2>2100.0)break;
-    if(r<1.0){captured=1.0;break;}
-    float dt=clamp(0.05*r,0.035,0.55);
-    dt=min(dt,abs(p.y)*0.8+0.05);
-    vec3 h=cross(p,v);
-    float h2=dot(h,h);
-    v+=-1.5*h2*p/(r2*r2*r)*dt;
-    vec3 np=p+v*dt;
-    if(p.y*np.y<0.0){
-      float f=p.y/(p.y-np.y);
-      vec3 hp=mix(p,np,f);
-      float rr=length(hp.xz);
-      if(rr>DIN*0.98&&rr<DOUT){
-        float g=diskShine(hp,rr);
-        float temp=pow(DIN/rr,0.75);
-        vec3 tint=bb(temp);
-        vec3 tang=normalize(vec3(-hp.z,0.0,hp.x));
-        float beta=min(sqrt(0.5/rr),0.65);
-        float dop=1.0/(1.0+beta*dot(tang,v));
-        float beam=clamp(dop*dop*dop,0.2,3.4);
-        float gred=sqrt(max(1.0-1.0/rr,0.0));
-        vec3 e=tint*g*beam*gred;
-        e+=vec3(1.3,1.05,0.75)*exp(-(rr-DIN)*1.4)*0.35*beam;
-        acc+=e*1.05*trans;
-        trans*=0.35;
-        if(trans<0.02)break;
-      }
-    }
-    float rrp=length(p.xz);
-    if(abs(p.y)<1.2&&rrp>DIN*1.15&&rrp<DOUT*0.8){
-      float hz=exp(-abs(p.y)*2.6)*exp(-(rrp-DIN)*0.55);
-      acc+=vec3(1.2,0.85,0.55)*hz*0.004*dt*trans;
-    }
-    p=np;
-  }
-
-  vec3 col=acc;
-  if(captured<0.5){
-    vec3 dome=normalize(v);
-    vec3 neb=vec3(0.30,0.22,0.50)*fbm3(dome*3.0+3.0)+vec3(0.12,0.18,0.40)*fbm3(dome*1.45+8.0);
-    float band=exp(-abs(dome.y+0.18)*2.4);
-    neb+=vec3(0.38,0.30,0.55)*band*(0.35+0.65*fbm3(dome*4.1+17.0));
-    neb+=vec3(0.10,0.16,0.34)*band*fbm3(dome*8.4+31.0)*0.8;
-    float glint=starfield(dome,72.0,0.9935,0.0)+starfield(dome,168.0,0.996,41.7)*0.7+starfield(dome,30.0,0.991,11.3)*1.3;
-    col+=(neb*0.62+vec3(0.9,0.93,1.0)*glint*1.6)*trans;
-  }
-
-  col=1.0-exp(-col*0.85);
-  float vin=0.80+0.20*(1.0-smoothstep(0.95,2.20,aim));
-  col*=vin;
-  float lum=dot(col,vec3(0.299,0.587,0.114));
-  float alpha=clamp(lum*2.3+captured*0.85*(1.0-smoothstep(1.05,2.30,aim)),0.0,1.0);
   gl_FragColor=vec4(col*alpha,alpha);
 }
 `;
@@ -551,10 +256,9 @@ void main(){
   gl_FragColor=s/16.0+texture2D(add,vUv);
 }`;
 
-function isFancy() { return props.detail === 'detailed' || props.detail === 'new'; }
+function isFancy() { return true; }
 function getSceneSrc() {
-  if (props.detail === 'new') return sceneNewSrc;
-  return props.detail === 'detailed' ? sceneDetSrc : sceneSrc;
+  return sceneSrc;
 }
 function drawScale()   { return isFancy() ? 1.0 : 0.72; }
 function dprCap()      { return isFancy() ? 2.0 : 1.25; }
@@ -789,7 +493,6 @@ function nap() {
 }
 
 watch(() => props.active, nap);
-watch(() => props.detail, rebuild);
 
 function onCtxLost(e: Event) { e.preventDefault(); cancelAnimationFrame(frameId); }
 function onCtxRestore()      { if (wire()) { last = 0; frameId = requestAnimationFrame(loop); } }

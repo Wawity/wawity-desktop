@@ -127,7 +127,12 @@ async function copyServerIp(srv: ServerEntry) {
 }
 
 const buckets = computed(() =>
-  groupServers(vpnStore.subscriptions, props.query, vpnStore.settings.language),
+  groupServers(
+    vpnStore.subscriptions,
+    props.query,
+    vpnStore.settings.language,
+    vpnStore.hiddenSubIds,
+  ),
 );
 
 const current = computed(() => buckets.value.find((b) => b.code === picked.value) ?? null);
