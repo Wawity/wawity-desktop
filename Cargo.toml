@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["crates/wawity-core", "crates/wawity-cli", "src-tauri"]
+exclude = ["installer"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true
