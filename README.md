@@ -13,6 +13,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [What's new in 0.3.0](#whats-new-in-030)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
@@ -38,6 +39,15 @@ The product ships in two flavors from the same codebase:
 - **Wawity Desktop** — the full GUI app (`wawity-app.exe`), built with Tauri.
 - **Wawity CLI** — a lightweight console/TUI client (`wawity.exe`) for headless or server use, built with `ratatui`.
 
+## What's new in 0.3.0
+
+- **Accurate latency measurement with the tunnel up** — ping probes are now source-bound to the physical network adapter (the same split-tunneling escape path the engine uses for direct traffic), so server latencies are identical whether the VPN is connected or not. The SOCKS path is only a fallback when the physical IPv4 cannot be determined.
+- **DNS benchmark: 12 providers** — the built-in benchmark (`Extras → DNS Benchmark`) now covers Cloudflare, Google, Quad9, AdGuard, NextDNS, DNS.SB, Mullvad, Digitale Gesellschaft, dns0.eu, OpenDNS, ControlD and Comss, probing via both provider JSON APIs and RFC 8484 DoH wire format. The best result can be applied as the active DNS preset in one click.
+- **Fixed the `digitale` DNS preset** — it pointed at unrelated Scaleway IPs; it now resolves to the real Digitale Gesellschaft resolvers (185.95.218.42/43, Zürich).
+- **Redesigned server selection panel** — a telemetry-board style list where the oversized colored latency numeral is the hero of each row.
+- **Redesigned tray popup** — a Windows 11 flyout look: acrylic surface, single-line server rows, one unified bottom action bar.
+- **Installer & splash versioning** — the installer UI, splash screen and in-app About page all report the real app version (0.3.0).
+
 ## Features
 
 **Core VPN engine**
@@ -59,7 +69,7 @@ The product ships in two flavors from the same codebase:
 - Configurable global hotkeys (works even when the window is hidden).
 - Native desktop notifications.
 - Discord Rich Presence integration (optionally shows connected server/subscription).
-- Built-in network tools: server reachability checks, speed test, and DNS/IP leak diagnostics (`src/views/extra/`).
+- Built-in network tools (`src/views/extra/`): server reachability checks, speed test, DNS/IP leak diagnostics, DNS benchmark with 12 providers, node pulse monitoring, port audit, firewall overview, and ready-made fix snippets.
 - Auto-start on boot, with an option to launch minimized to tray.
 - Animated “space objects” background (black hole / pulsar / neutron star / nebula) with a togglable detail level (simple vs. cinematic) for lower-end GPUs.
 - Bilingual interface: English and Russian, switchable at runtime.
@@ -109,7 +119,8 @@ wawity/
 ├── src/
 │   ├── components/          Vue components (UI + animated backgrounds)
 │   ├── views/                Connection / Servers / Analysis / Settings
-│   ├── views/extra/          Reachability / SpeedTest / Leaks utilities
+│   ├── views/extra/          Reachability / SpeedTest / Leaks / DnsBench
+│   │                         / NodePulse / PortAudit / Firewall / Snippets
 │   ├── stores/                Pinia store (vpn.ts)
 │   ├── i18n/                   en.ts / ru.ts locales
 │   ├── composables/
