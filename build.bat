@@ -1,26 +1,24 @@
 @echo off
 setlocal
-chcp 65001 >nul
-title Wawity Build
 cd /d "%~dp0"
 
-set DIST=dist-build
+set "DIST=dist-build"
 call :prep_cargo
 
 :menu
-echo(
-echo   ================ WAWITY BUILD ================
-echo(
-echo    [1] DESKTOP  —  фронт + Rust + установщик  →  %DIST%\WawitySetup-Desktop.exe
-echo    [2] CLI      —  бинарник + установщик       →  %DIST%\WawitySetup-CLI.exe
-echo    [3] Оба продукта подряд
-echo(
-echo    [4] Очистка сборки
-echo    [5] Диагностика cargo: реестр и сеть
-echo    [0] Выход
-echo(
-set PICK=
-set /p PICK=   Выбор: 
+cls
+echo ================ WAWITY BUILD ================
+echo.
+echo   [1] DESKTOP - frontend + Rust + installer
+echo   [2] CLI     - binary + installer
+echo   [3] Both products
+echo.
+echo   [4] Clean build
+echo   [5] Cargo diagnostics
+echo   [0] Exit
+echo.
+set "PICK="
+set /p "PICK=Choice: "
 if "%PICK%"=="1" goto desktop
 if "%PICK%"=="2" goto cli
 if "%PICK%"=="3" goto both
@@ -50,13 +48,13 @@ cargo clean
 pushd installer
 cargo clean
 popd
-echo   Очищено.
+echo Cleaned.
 pause
 goto menu
 
 :fail
-echo(
-echo   [X] Сборка прервана из-за ошибки.
+echo.
+echo [X] Build failed with an error.
 pause
 goto menu
 
@@ -75,10 +73,9 @@ if defined CFG_HOME if exist "%CFG_HOME%" call :scan_cfg "%CFG_HOME%"
 if defined CFG_HOME2 if exist "%CFG_HOME2%" call :scan_cfg "%CFG_HOME2%"
 if defined CARGO_SOURCE_CRATES_IO_REPLACE_WITH set "MIRROR=1"
 if "%MIRROR%"=="0" exit /b 0
-echo(
-echo   [i] Обнаружено зеркало cargo в глобальном конфиге — параметр replace-with.
-echo       Сборка пойдёт через изолированный CARGO_HOME:
-echo       %CLEAN_HOME%
+echo.
+echo [i] Cargo mirror detected in config (replace-with).
+echo     Using isolated CARGO_HOME: %CLEAN_HOME%
 if not exist "%CLEAN_HOME%" mkdir "%CLEAN_HOME%"
 if exist "%CLEAN_HOME%\config.toml" del /q "%CLEAN_HOME%\config.toml"
 if exist "%CLEAN_HOME%\config" del /q "%CLEAN_HOME%\config"
@@ -94,109 +91,109 @@ if not errorlevel 1 set "MIRROR=1"
 exit /b 0
 
 :diag
-echo(
-echo   --- ДИАГНОСТИКА CARGO ---
-echo(
+echo.
+echo --- CARGO DIAGNOSTICS ---
+echo.
 where cargo
 cargo --version
-echo(
-echo   CARGO_HOME для сборки: %CARGO_HOME%
-echo   Зеркало обнаружено: %MIRROR%
-echo(
-echo   --- Глобальный конфиг %CFG_USER% ---
+echo.
+echo CARGO_HOME: %CARGO_HOME%
+echo Mirror detected: %MIRROR%
+echo.
+echo --- Global config %CFG_USER% ---
 if exist "%CFG_USER%" type "%CFG_USER%"
-if not exist "%CFG_USER%" echo   Файл отсутствует.
-echo(
-if defined CFG_HOME if exist "%CFG_HOME%" echo   --- Конфиг %CFG_HOME% ---
+if not exist "%CFG_USER%" echo File not found.
+echo.
+if defined CFG_HOME if exist "%CFG_HOME%" echo --- Config %CFG_HOME% ---
 if defined CFG_HOME if exist "%CFG_HOME%" type "%CFG_HOME%"
-echo(
-echo   --- Переменные окружения CARGO_ ---
+echo.
+echo --- Environment CARGO_ ---
 set CARGO_ 2>nul
-echo(
-echo   --- Доступ к crates.io ---
+echo.
+echo --- Access to crates.io ---
 powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -Uri 'https://index.crates.io/config.json' -TimeoutSec 20; Write-Host ('   OK, HTTP ' + $r.StatusCode) } catch { Write-Host ('   FAIL: ' + $_.Exception.Message) }"
 pause
 goto menu
 
 :product_desktop
-echo(
-echo   ========== ПРОДУКТ: WAWITY DESKTOP ==========
-echo(
-echo   [1/4] Фронтенд vite
+echo.
+echo ========== PRODUCT: WAWITY DESKTOP ==========
+echo.
+echo [1/4] Frontend vite
 if not exist node_modules call npm install || exit /b 1
 call npm run build || exit /b 1
-echo(
-echo   [2/4] Rust GUI tauri
+echo.
+echo [2/4] Rust GUI tauri
 if exist target\release\wawity-app.exe del /q target\release\wawity-app.exe
 cargo build -p wawity --release || exit /b 1
 if not exist target\release\wawity-app.exe echo [X] wawity-app.exe not built & exit /b 1
-echo(
-echo   [3/4] Payload
+echo.
+echo [3/4] Payload
 call :stage_payload desktop || exit /b 1
-echo(
-echo   [4/4] Установщик
+echo.
+echo [4/4] Installer
 call :build_installer desktop Desktop || exit /b 1
 exit /b 0
 
 :product_cli
-echo(
-echo   ========== ПРОДУКТ: WAWITY CLI ==========
-echo(
-echo   [1/3] Rust CLI wawity-cli
+echo.
+echo ========== PRODUCT: WAWITY CLI ==========
+echo.
+echo [1/3] Rust CLI wawity-cli
 if exist target\release\wawity.exe del /q target\release\wawity.exe
 cargo build -p wawity-cli --release || exit /b 1
 if not exist target\release\wawity.exe echo [X] wawity.exe not built & exit /b 1
-echo(
-echo   [2/3] Payload
+echo.
+echo [2/3] Payload
 call :stage_payload cli || exit /b 1
-echo(
-echo   [3/3] Установщик
+echo.
+echo [3/3] Installer
 call :build_installer cli CLI || exit /b 1
 exit /b 0
 
 :stage_payload
-set VARIANT=%1
+set "VARIANT=%~1"
 if not exist installer\payload mkdir installer\payload
 if not exist installer\payload\MicrosoftEdgeWebView2Setup.exe (
-  echo   [X] Нет installer\payload\MicrosoftEdgeWebView2Setup.exe
-  echo       Скачайте WebView2 Evergreen Bootstrapper и положите его туда.
+  echo [X] Missing installer\payload\MicrosoftEdgeWebView2Setup.exe
+  echo     Download WebView2 Evergreen Bootstrapper and place it there.
   exit /b 1
 )
 if not exist src-tauri\binaries\sing-box-x86_64.exe (
-  echo   [X] Нет src-tauri\binaries\sing-box-x86_64.exe
+  echo [X] Missing src-tauri\binaries\sing-box-x86_64.exe
   exit /b 1
 )
 if not exist src-tauri\binaries\wintun.dll (
-  echo   [X] Нет src-tauri\binaries\wintun.dll
+  echo [X] Missing src-tauri\binaries\wintun.dll
   exit /b 1
 )
-set STAGE=installer\payload\stage
-if exist %STAGE% rd /s /q %STAGE%
-mkdir %STAGE%\rulesets
-copy /y src-tauri\binaries\sing-box-x86_64.exe %STAGE%\ >nul || exit /b 1
-copy /y src-tauri\binaries\wintun.dll %STAGE%\ >nul || exit /b 1
-copy /y src-tauri\rulesets\*.srs %STAGE%\rulesets\ >nul || exit /b 1
-if "%VARIANT%"=="desktop" copy /y target\release\wawity-app.exe %STAGE%\WawityApp.exe >nul || exit /b 1
-if "%VARIANT%"=="cli" copy /y target\release\wawity.exe %STAGE%\wawity.exe >nul || exit /b 1
-if "%VARIANT%"=="cli" if not exist %STAGE%\wawity.exe echo [X] wawity.exe missing in payload & exit /b 1
-if "%VARIANT%"=="desktop" if not exist %STAGE%\WawityApp.exe echo [X] WawityApp.exe missing in payload & exit /b 1
+set "STAGE=installer\payload\stage"
+if exist "%STAGE%" rd /s /q "%STAGE%"
+mkdir "%STAGE%\rulesets"
+copy /y src-tauri\binaries\sing-box-x86_64.exe "%STAGE%\" >nul || exit /b 1
+copy /y src-tauri\binaries\wintun.dll "%STAGE%\" >nul || exit /b 1
+copy /y src-tauri\rulesets\*.srs "%STAGE%\rulesets\" >nul || exit /b 1
+if "%VARIANT%"=="desktop" copy /y target\release\wawity-app.exe "%STAGE%\WawityApp.exe" >nul || exit /b 1
+if "%VARIANT%"=="cli" copy /y target\release\wawity.exe "%STAGE%\wawity.exe" >nul || exit /b 1
+if "%VARIANT%"=="cli" if not exist "%STAGE%\wawity.exe" echo [X] wawity.exe missing in payload & exit /b 1
+if "%VARIANT%"=="desktop" if not exist "%STAGE%\WawityApp.exe" echo [X] WawityApp.exe missing in payload & exit /b 1
 powershell -NoProfile -Command "Compress-Archive -Path 'installer\payload\stage\*' -DestinationPath 'installer\payload\app.zip' -Force" || exit /b 1
-rd /s /q %STAGE%
+rd /s /q "%STAGE%"
 exit /b 0
 
 :build_installer
-set VARIANT=%1
-set SUFFIX=%2
-set WAWITY_VARIANT=%VARIANT%
+set "VARIANT=%~1"
+set "SUFFIX=%~2"
+set "WAWITY_VARIANT=%VARIANT%"
 pushd installer
 cargo build --release
-set ERR=%errorlevel%
+set "ERR=%errorlevel%"
 popd
-set WAWITY_VARIANT=
+set "WAWITY_VARIANT="
 if not "%ERR%"=="0" exit /b 1
-if not exist %DIST% mkdir %DIST%
-copy /y installer\target\release\WawitySetup.exe %DIST%\WawitySetup-%SUFFIX%.exe >nul || exit /b 1
-if "%VARIANT%"=="cli" copy /y %DIST%\WawitySetup-CLI.exe %DIST%\WawitySetup-CLI-serverinstall.exe >nul
-echo(
-echo   Готово: %DIST%\WawitySetup-%SUFFIX%.exe
+if not exist "%DIST%" mkdir "%DIST%"
+copy /y installer\target\release\WawitySetup.exe "%DIST%\WawitySetup-%SUFFIX%.exe" >nul || exit /b 1
+if "%VARIANT%"=="cli" copy /y "%DIST%\WawitySetup-CLI.exe" "%DIST%\WawitySetup-CLI-serverinstall.exe" >nul
+echo.
+echo Done: %DIST%\WawitySetup-%SUFFIX%.exe
 exit /b 0

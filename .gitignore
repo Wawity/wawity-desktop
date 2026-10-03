@@ -64,6 +64,15 @@ public/us.svg
 public/flags/dd.dd
 # The zipped site update, built to hand over to the marketing repo.
 wawity-site-update.zip
+# Promo films and their Remotion sources. 31MB of mp4 that the client never
+# loads; they belong to the marketing repo. The two zips alongside them are
+# build output that duplicates what is already in those folders.
+public/promo/
+public/_promo-src/
+public/promo-player.css
+public/promo-player.js
+public/wawity-site-demos.zip
+wawity-fix.zip
 
 # Session tooling (not part of the project)
 .opencode/

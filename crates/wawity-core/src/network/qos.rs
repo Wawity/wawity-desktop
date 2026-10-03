@@ -23,13 +23,9 @@ fn purge_snippet() -> String {
     "Get-NetQosPolicy -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'WawityQos*' } | Remove-NetQosPolicy -Confirm:$false -ErrorAction SilentlyContinue".to_string()
 }
 
-pub fn refresh_async(bypass_paths: Vec<String>, core_path: Option<String>) {
+pub fn refresh_async(bypass_paths: Vec<String>, _core_path: Option<String>) {
     std::thread::spawn(move || {
         let game_names = exe_names(&bypass_paths);
-        let core_names = match core_path {
-            Some(ref p) => exe_names(std::slice::from_ref(&p.to_string())),
-            None => Vec::new(),
-        };
 
         let mut script = String::from("$ErrorActionPreference='SilentlyContinue'; ");
         script.push_str(&purge_snippet());
@@ -41,18 +37,9 @@ pub fn refresh_async(bypass_paths: Vec<String>, core_path: Option<String>) {
                 ps_quote(name)
             ));
         }
-        if let Some(name) = core_names.first() {
-            script.push_str(&format!(
-                "; New-NetQosPolicy -Name 'WawityQosTunnel' -AppPathNameMatchCondition {} -DSCPAction 8 -NetworkProfile All | Out-Null",
-                ps_quote(name)
-            ));
-        }
 
         match crate::util::run_ps_script(&script, Duration::from_secs(25)) {
-            Ok(_) => crate::util::net_debug_log(&format!(
-                "qos refresh: games {:?} tunnel {:?}",
-                game_names, core_names
-            )),
+            Ok(_) => crate::util::net_debug_log(&format!("qos refresh: games {:?}", game_names)),
             Err(e) => crate::util::net_debug_log(&format!("qos refresh failed: {}", e)),
         }
     });
