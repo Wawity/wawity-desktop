@@ -1,0 +1,34 @@
+:root { --par-x: 0px; --par-y: 0px; --par-max: 0px; }
+body { font-family: var(--font-sans); }
+input, textarea, select, button { font-family: inherit; }
+code, kbd, pre, samp, .mono { font-family: var(--font-mono); }
+h1, h2, h3 { font-family: var(--font-display); }
+html.fx-parallax .custom-bg {
+  top: calc(var(--par-max) * -1);
+  right: calc(var(--par-max) * -1);
+  bottom: calc(var(--par-max) * -1);
+  left: calc(var(--par-max) * -1);
+}
+/* Promoted so the per-pointermove translate runs on the compositor instead of
+   re-rasterising the blurred image on every step. */
+html.fx-parallax .custom-bg img,
+html.fx-parallax .custom-bg-video {
+  translate: var(--par-x) var(--par-y);
+  transition: translate 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: translate;
+}
+/* The connection tint is a flat colour layer animated on opacity, not a filter
+   on .custom-bg. The image inside that container already carries
+   filter: blur(--bg-blur), so an animating filter on the parent made every
+   frame re-rasterise a full-screen blurred bitmap on top of the WebGL
+   backdrop — the window stuttered for the whole 0.9s each connect. */
+.custom-bg-fx {
+  position: absolute;
+  inset: 0;
+  background: #0a0b12;
+  opacity: 0;
+  will-change: opacity;
+  transition: opacity 0.5s ease;
+}
+html.fx-reactive.wawity-vpn-off .custom-bg-fx { opacity: 0.42; }
+@media (prefers-reduced-motion: reduce) { .custom-bg, .custom-bg-fx, html.fx-parallax .custom-bg img { transition: none; } }

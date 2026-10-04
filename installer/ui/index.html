@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wawity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=Inter:wght@400;500&family=Unbounded:wght@300;400;900&display=swap" rel="stylesheet" />
+<style>
+  /* Tokens match the app's global.css so the installer and the client read as
+     one product. The old file kept its own --onyx/--paper/--hairline set. */
+  :root {
+    --onyx: #0f0d0d;
+    --paper: #f7f5f3;
+    --fog: #939292;
+    --ash: #878686;
+    --ember: #fe2c02;
+    --hairline: rgba(255, 255, 255, 0.1);
+    --hairline-2: rgba(255, 255, 255, 0.18);
+    --r-pill: 9999px;
+    --r-card: 14px;
+    --f-display: 'Inter Tight', Inter, system-ui, sans-serif;
+    --f-text: 'Inter', system-ui, sans-serif;
+    --f-label: 'Unbounded', 'Inter Tight', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: transparent;
+    font-family: var(--f-text);
+    color: var(--paper);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--onyx);
+    border-radius: 16px;
+  }
+
+  /* ---- backdrop: the black hole stays, everything layered on top of it goes.
+     The ember floor glow, the film grain and the three-stop scrim are gone;
+     a single flat wash is all the type needed to stay readable. ---- */
+  .bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+  #hole {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(9, 8, 8, .74) 0%, rgba(9, 8, 8, .52) 45%, rgba(15, 13, 13, .88) 100%);
+  }
+
+  /* ---- titlebar ---- */
+  .titlebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 44px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 10px 10px 0 0;
+    z-index: 10;
+  }
+  .tb-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 140ms ease, color 140ms ease;
+  }
+  .tb-btn:hover { background: rgba(255, 255, 255, .08); color: var(--paper); }
+  .tb-btn.close:hover { background: rgba(254, 44, 2, .18); color: #ff9a85; }
+
+  /* ---- header ---- */
+  .head {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    padding: 30px 34px 0;
+  }
+  .head-label {
+    font-family: var(--f-label);
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--fog);
+  }
+  /* The old pitch was 46px Unbounded 900 uppercase over three staggered lines
+     with a 3D rise, followed by a second 34px block for the domain. A form
+     does not need a poster above it. */
+  .head h1 {
+    font-family: var(--f-display);
+    font-weight: 400;
+    font-size: 23px;
+    line-height: 1.2;
+    letter-spacing: -.03em;
+    color: var(--paper);
+    margin: 10px 0 0;
+  }
+  .head-sub {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--ash);
+    max-width: 50ch;
+    margin: 8px 0 0;
+  }
+  .site {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--fog);
+    font-family: var(--f-text);
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: color 160ms ease;
+  }
+  .site em { font-style: normal; color: var(--ember); }
+  .site:hover { color: var(--paper); }
+  .site .arrow { transition: transform 180ms cubic-bezier(.22, 1, .36, 1); }
+  .site:hover .arrow { transform: translate(3px, -2px); }
+
+  /* ---- stage ---- */
+  .stage {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 26px 34px 0;
+  }
+  .stage::-webkit-scrollbar { width: 6px; }
+  .stage::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .12); border-radius: 3px; }
+  .screen { display: flex; flex-direction: column; gap: 14px; }
+  .hidden { display: none !important; }
+
+  .subtitle {
+    font-family: var(--f-display);
+    font-size: 17px;
+    font-weight: 400;
+    letter-spacing: -.025em;
+    color: var(--paper);
+  }
+  .desc { font-size: 12.5px; line-height: 1.6; color: var(--ash); margin: 0; }
+  .desc.dim { color: var(--fog); font-size: 11.5px; }
+
+  .label {
+    font-family: var(--f-label);
+    font-size: 9px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--fog);
+  }
+
+  /* Hairline rows, no fill — the way the landing separates its own rows. */
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .row:last-of-type { border-bottom: 1px solid var(--hairline); }
+  .row-t { font-size: 13px; color: var(--paper); }
+  .row-d { font-size: 11.5px; line-height: 1.5; color: var(--fog); margin-top: 3px; }
+
+  .pathrow { display: flex; align-items: center; gap: 10px; }
+  .path {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 13px;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    background: transparent;
+    font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--paper);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ghost {
+    flex-shrink: 0;
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ash);
+    font-family: var(--f-text);
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+  }
+  .ghost:hover { background: rgba(255, 255, 255, .05); color: var(--paper); border-color: var(--hairline-2); }
+
+  /* Checkbox: a hairline box that fills on check. Same tick grammar as the
+     app's settings toggles. */
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 13px 0;
+    border-top: 1px solid var(--hairline);
+    cursor: pointer;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--ash);
+  }
+  .check:last-of-type { border-bottom: 1px solid var(--hairline); }
+  .check input { position: absolute; opacity: 0; pointer-events: none; }
+  .check .box {
+    flex-shrink: 0;
+    width: 17px;
+    height: 17px;
+    margin-top: 1px;
+    border: 1px solid var(--hairline-2);
+    border-radius: 5px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, border-color 160ms ease;
+  }
+  .check .box::after {
+    content: '';
+    width: 8px;
+    height: 4px;
+    border-left: 1.5px solid var(--onyx);
+    border-bottom: 1.5px solid var(--onyx);
+    transform: rotate(-45deg) scale(0.5);
+    opacity: 0;
+    transition: opacity 140ms ease, transform 180ms cubic-bezier(.22, 1, .36, 1);
+  }
+  .check input:checked + .box { background: var(--paper); border-color: var(--paper); }
+  .check input:checked + .box::after { opacity: 1; transform: rotate(-45deg) scale(1); }
+  .check:hover .box { border-color: var(--paper); }
+  .check strong { color: var(--paper); font-weight: 500; }
+
+  /* Segmented switch, header-sized. Replaces the three-option components
+     screen; only a 'full' build offers the choice at all. */
+  .seg {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-pill);
+  }
+  .seg button {
+    height: 28px;
+    padding: 0 13px;
+    border: none;
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: var(--fog);
+    font-family: var(--f-text);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 160ms ease, color 160ms ease;
+  }
+  .seg button:hover { color: var(--paper); }
+  .seg button.sel { background: var(--paper); color: var(--onyx); }
+
+  .note {
+    padding: 13px 15px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+  }
+  .note-t {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--paper);
+    margin-bottom: 5px;
+  }
+  .note-d { font-size: 11.5px; line-height: 1.6; color: var(--ash); }
+  .note-d b { color: var(--paper); font-weight: 500; }
+
+  .tag {
+    font-family: var(--f-label);
+    font-size: 8px;
+    font-weight: 400;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ember);
+  }
+  .tag.cli { color: var(--fog); }
+
+  .warn {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #ff9a85;
+    padding: 11px 13px;
+    border: 1px solid rgba(254, 44, 2, .32);
+    border-radius: 10px;
+    background: rgba(254, 44, 2, .07);
+  }
+
+  /* Primary is inverted white on near-black, the same as the app's. */
+  .cta {
+    width: 100%;
+    height: 44px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    background: var(--paper);
+    color: var(--onyx);
+    font-family: var(--f-display);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -.01em;
+    cursor: pointer;
+    transition: opacity 140ms ease;
+  }
+  .cta:hover { opacity: .88; }
+  .cta:active { opacity: .72; }
+  .cta.danger { background: transparent; border-color: rgba(254, 44, 2, .4); color: #ff9a85; }
+  .cta.danger:hover { background: rgba(254, 44, 2, .1); }
+
+  .quit-link {
+    align-self: center;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--fog);
+    font-family: var(--f-text);
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: color 160ms ease;
+  }
+  .quit-link:hover { color: var(--paper); }
+
+  /* ---- progress ---- */
+  .phase {
+    font-family: var(--f-display);
+    font-size: 19px;
+    font-weight: 400;
+    letter-spacing: -.025em;
+    color: var(--paper);
+  }
+  .bar { height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+  .fill {
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: var(--paper);
+    transition: width 260ms cubic-bezier(.22, 1, .36, 1);
+  }
+  .pct {
+    font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--fog);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .done-t {
+    font-family: var(--f-display);
+    font-size: 21px;
+    font-weight: 400;
+    letter-spacing: -.03em;
+    color: var(--paper);
+  }
+  .done-note { font-size: 12.5px; line-height: 1.6; color: var(--ash); }
+  .fail-t {
+    font-family: var(--f-display);
+    font-size: 16px;
+    font-weight: 400;
+    letter-spacing: -.02em;
+    line-height: 1.4;
+    color: #ff9a85;
+  }
+
+  .ver {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    padding: 16px 34px 20px;
+    font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+    font-size: 10px;
+    color: var(--fog);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fill { transition: none; }
+    .site .arrow { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="bg"><canvas id="hole"></canvas></div>
+
+    <div class="titlebar" id="drag">
+      <button class="tb-btn" id="min" tabindex="-1" aria-label="Свернуть">&#8211;</button>
+      <button class="tb-btn close" id="close" tabindex="-1" aria-label="Закрыть">&#10005;</button>
+    </div>
+
+    <div class="head">
+      <div class="head-label">wawity — клиент для Windows</div>
+      <h1>Установка</h1>
+      <p class="head-sub" id="head-sub">Игровой трафик идёт в обход туннеля прямо в роутере, а kill switch живёт в файрволе Windows — а не в обещаниях приложения.</p>
+      <button class="site" id="site" type="button" aria-label="Открыть wawity.lol">
+        <span>wawity<em>.lol</em></span>
+        <span class="arrow" aria-hidden="true">&#8599;</span>
+      </button>
+    </div>
+
+    <div class="stage">
+      <div class="screen hidden" id="s-setup">
+        <div class="note hidden" id="setup-existing">
+          <div class="note-t"><span class="tag">ПЕРЕУСТАНОВКА</span></div>
+          <div class="note-d" id="setup-existing-text"></div>
+        </div>
+
+        <div id="seg-row" class="hidden">
+          <div class="label">Что установить</div>
+          <div class="seg" id="seg">
+            <button type="button" data-comp="desktop" id="comp-desktop">Приложение</button>
+            <button type="button" data-comp="cli" id="comp-cli">CLI</button>
+            <button type="button" data-comp="both" id="comp-both">Обе</button>
+          </div>
+        </div>
+
+        <label class="check hidden" id="clean-row">
+          <input type="checkbox" id="clean" />
+          <span class="box"></span>
+          <span><strong>Чистая установка</strong> — удалить настройки, серверы и подписки. Без этого они сохранятся.</span>
+        </label>
+
+        <div class="note hidden" id="cli-note">
+          <div class="note-t"><span class="tag cli">CLI</span><span id="cli-note-title"></span></div>
+          <div class="note-d" id="cli-note-text"></div>
+        </div>
+
+        <div class="label">Путь установки</div>
+        <div class="pathrow">
+          <div class="path" id="path"></div>
+          <button class="ghost" id="browse">Обзор</button>
+        </div>
+
+        <label class="check" id="desktop-row">
+          <input type="checkbox" id="desktop" checked />
+          <span class="box"></span>
+          <span>Ярлык на рабочем столе</span>
+        </label>
+
+        <button class="cta" id="go">Установить</button>
+      </div>
+
+      <div class="screen hidden" id="s-un">
+        <div class="subtitle">Удаление Wawity</div>
+        <div class="desc">Приложение, команда wawity вместе с записью в PATH, правила брандмауэра, ярлыки и записи в системе будут удалены с этого компьютера.</div>
+        <label class="check">
+          <input type="checkbox" id="purge" />
+          <span class="box"></span>
+          <span><strong>Удалить все данные</strong> — настройки, серверы, подписки и прогресс первичной настройки.</span>
+        </label>
+        <div class="desc dim">Если оставить данные, при переустановке они подхватятся автоматически.</div>
+        <button class="cta danger" id="ungo">Удалить Wawity</button>
+        <button class="quit-link" id="uncancel">Отмена</button>
+      </div>
+
+      <div class="screen hidden" id="s-progress">
+        <div class="phase" id="phase">Подготовка</div>
+        <div class="bar"><div class="fill" id="fill"></div></div>
+        <div class="pct" id="pct">0%</div>
+      </div>
+
+      <div class="screen hidden" id="s-done">
+        <div class="done-t">Установка завершена</div>
+        <div class="done-note hidden" id="done-cli-note"></div>
+        <button class="cta" id="launch">Запустить</button>
+        <button class="quit-link" id="quit">Закрыть</button>
+      </div>
+
+      <div class="screen hidden" id="s-undone">
+        <div class="done-t">Wawity удалён</div>
+        <div class="done-note">Окно закроется автоматически.</div>
+      </div>
+
+      <div class="screen hidden" id="s-fail">
+        <div class="fail-t" id="failmsg"></div>
+        <button class="ghost" id="retry">Попробовать снова</button>
+        <button class="quit-link" id="quit2">Закрыть</button>
+      </div>
+    </div>
+
+    <div class="ver" id="ver"></div>
+  </div>
+<script>
+var post = function (m) {
+  if (window.ipc && window.ipc.postMessage) {
+    window.ipc.postMessage(JSON.stringify(m));
+  }
+};
+
+var boot = window.__boot || {
+  mode: 'install',
+  dir: 'C:\\Program Files\\Wawity',
+  version: '0.4.0',
+  installed: false,
+  dataPresent: false,
+};
+
+var state = {
+  mode: boot.mode || 'install',
+  dir: boot.dir,
+  busy: false,
+  variant: boot.variant || 'desktop',
+  components: boot.variant === 'cli' ? 'cli' : (boot.variant === 'full' ? 'both' : 'desktop'),
+};
+
+var el = function (id) { return document.getElementById(id); };
+
+el('path').textContent = state.dir;
+el('path').title = state.dir;
+el('ver').textContent = 'v' + boot.version;
+
+var SCREENS = ['s-setup', 's-un', 's-progress', 's-done', 's-undone', 's-fail'];
+function show(name) {
+  SCREENS.forEach(function (id) {
+    el(id).classList.toggle('hidden', id !== name);
+  });
+}
+
+function applyComponents() {
+  var c = state.components;
+  var cliOnly = c === 'cli';
+  var hasCli = c !== 'desktop';
+  el('cli-note').classList.toggle('hidden', !hasCli);
+  el('desktop-row').classList.toggle('hidden', cliOnly);
+  ['desktop', 'cli', 'both'].forEach(function (id) {
+    el('comp-' + id).classList.toggle('sel', state.components === id);
+  });
+  if (cliOnly) {
+    el('cli-note-title').textContent = 'Консольный клиент без графического интерфейса';
+    el('cli-note-text').innerHTML = 'Команда <b>wawity</b> в терминале и интерактивная консоль. То же ядро, тот же kill switch, multi-hop и защита DNS — но в разы легче. После установки просто введите <b>wawity</b> в терминале.';
+  } else {
+    el('cli-note-title').textContent = 'Вместе с приложением установится CLI';
+    el('cli-note-text').innerHTML = 'Команда <b>wawity</b> станет доступна в терминале: подключение, статус и смена серверов без открытия приложения.';
+  }
+}
+
+if (state.mode === 'uninstall') {
+  el('head-sub').textContent = 'Удаление приложения, системных записей и правил брандмауэра.';
+  show('s-un');
+} else {
+  if (boot.installed || boot.dataPresent) {
+    el('setup-existing').classList.remove('hidden');
+    el('clean-row').classList.remove('hidden');
+    el('setup-existing-text').textContent = boot.installed
+      ? 'Wawity уже стоит на этом компьютере. Настройки, серверы и подписки сохранятся, если не выбрать чистую установку.'
+      : 'Найдены настройки, серверы и подписки от прошлой установки. Они подхватятся автоматически, если не выбрать чистую установку.';
+  }
+  // Only a build that actually ships both binaries offers the choice; a
+  // desktop or cli build has nothing to pick between.
+  if (state.variant === 'full') {
+    el('seg-row').classList.remove('hidden');
+  }
+  show('s-setup');
+}
+
+applyComponents();
+if (state.variant === 'cli') {
+  document.querySelector('.head-label').textContent = 'wawity cli — клиент для Windows';
+}
+
+window.setDir = function (dir) {
+  state.dir = dir;
+  el('path').textContent = dir;
+  el('path').title = dir;
+};
+
+window.setProgress = function (p, label) {
+  var pct = Math.max(0, Math.min(100, Math.round(p * 100)));
+  el('fill').style.width = pct + '%';
+  el('pct').textContent = pct + '%';
+  el('phase').textContent = label;
+};
+
+/* Rust still emits one setFile per extracted file. The per-file ticker is
+   gone, so these stay as no-ops rather than letting the call throw. */
+window.setFile = function () {};
+window.clearFiles = function () {};
+
+window.installDone = function (dir) {
+  state.busy = false;
+  state.dir = dir || state.dir;
+  if (state.components === 'cli') {
+    el('launch').textContent = 'Открыть консоль';
+    el('done-cli-note').textContent = 'Команда wawity добавлена в PATH. Уже открытые терминалы нужно перезапустить.';
+    el('done-cli-note').classList.remove('hidden');
+  } else if (state.components === 'both') {
+    el('done-cli-note').textContent = 'Также установлен Wawity CLI: команда wawity доступна в новых окнах терминала.';
+    el('done-cli-note').classList.remove('hidden');
+  }
+  show('s-done');
+};
+
+window.installFailed = function (msg) {
+  state.busy = false;
+  el('failmsg').textContent = msg;
+  show('s-fail');
+};
+
+window.uninstallDone = function () {
+  state.busy = false;
+  window.setProgress(1, 'Готово');
+  show('s-undone');
+  window.setTimeout(function () { post({ cmd: 'close' }); }, 2500);
+};
+
+window.uninstallFailed = function (msg) {
+  state.busy = false;
+  el('failmsg').textContent = msg;
+  show('s-fail');
+};
+
+el('drag').addEventListener('mousedown', function (e) {
+  if (e.button === 0 && e.target === el('drag')) {
+    post({ cmd: 'drag' });
+  }
+});
+
+el('min').addEventListener('click', function () { post({ cmd: 'minimize' }); });
+el('close').addEventListener('click', function () { post({ cmd: 'close' }); });
+el('browse').addEventListener('click', function () { post({ cmd: 'browse' }); });
+
+['desktop', 'cli', 'both'].forEach(function (c) {
+  el('comp-' + c).addEventListener('click', function () {
+    state.components = c;
+    applyComponents();
+  });
+});
+
+el('go').addEventListener('click', function () {
+  if (state.busy) return;
+  state.busy = true;
+  show('s-progress');
+  window.setProgress(0.01, 'Подготовка');
+  post({
+    cmd: 'install',
+    dir: state.dir,
+    desktop: state.components !== 'cli' && el('desktop').checked,
+    keep: !el('clean').checked,
+    components: state.components,
+  });
+});
+
+el('ungo').addEventListener('click', function () {
+  if (state.busy) return;
+  state.busy = true;
+  show('s-progress');
+  window.setProgress(0.05, 'Удаление');
+  post({ cmd: 'uninstall', purge: el('purge').checked });
+});
+
+el('uncancel').addEventListener('click', function () { post({ cmd: 'close' }); });
+
+el('retry').addEventListener('click', function () {
+  show(state.mode === 'uninstall' ? 's-un' : 's-setup');
+});
+
+el('launch').addEventListener('click', function () { post({ cmd: 'launch', dir: state.dir, cli: state.components === 'cli' }); });
+el('quit').addEventListener('click', function () { post({ cmd: 'close' }); });
+el('quit2').addEventListener('click', function () { post({ cmd: 'close' }); });
+
+el('site').addEventListener('click', function () {
+  post({ cmd: 'open_url', url: 'https://wawity.lol' });
+});
+
+(function () {
+  var vertSrc = 'attribute vec2 spot;\nvoid main() {\n  gl_Position = vec4(spot, 0.0, 1.0);\n}';
+
+  var fragSrc = [
+    'precision highp float;',
+    'uniform vec2 res;',
+    'uniform float time;',
+    'const float DIN = 2.6;',
+    'const float DOUT = 9.5;',
+    'float hash(vec2 s) {',
+    '  return fract(sin(dot(s, vec2(127.1, 311.7))) * 43758.5453123);',
+    '}',
+    'float noise(vec2 s) {',
+    '  vec2 i = floor(s);',
+    '  vec2 f = fract(s);',
+    '  vec2 u = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash(i);',
+    '  float b = hash(i + vec2(1.0, 0.0));',
+    '  float c = hash(i + vec2(0.0, 1.0));',
+    '  float d = hash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);',
+    '}',
+    'float fbm(vec2 s) {',
+    '  float acc = 0.0;',
+    '  float amp = 0.5;',
+    '  for (int i = 0; i < 4; i++) {',
+    '    acc += amp * noise(s);',
+    '    s = s * 2.03 + vec2(19.7, 7.3);',
+    '    amp *= 0.5;',
+    '  }',
+    '  return acc;',
+    '}',
+    'mat2 whirl(float a) {',
+    '  float c = cos(a);',
+    '  float s = sin(a);',
+    '  return mat2(c, -s, s, c);',
+    '}',
+    'vec3 bbody(float k) {',
+    '  vec3 col = mix(vec3(0.45, 0.08, 0.02), vec3(1.0, 0.42, 0.12), smoothstep(0.0, 0.4, k));',
+    '  col = mix(col, vec3(1.0, 0.85, 0.62), smoothstep(0.4, 0.75, k));',
+    '  col = mix(col, vec3(0.85, 0.90, 1.0), smoothstep(0.75, 1.05, k));',
+    '  return col;',
+    '}',
+    'float diskGlow(vec3 hit, float rr) {',
+    '  float ang = atan(hit.z, hit.x);',
+    '  float omega = 6.0 / pow(rr, 1.5);',
+    '  float shear = ang + (fract(time / 36.0) - 0.5) * 36.0 * omega;',
+    '  float lr = log(rr);',
+    '  float lanes = noise(vec2(shear * 4.0, lr * 5.0)) * 0.65',
+    '    + noise(vec2(shear * 8.0 + 47.3, lr * 11.0 + 9.1)) * 0.35;',
+    '  float calm = smoothstep(DOUT * 0.9, DOUT * 0.4, rr);',
+    '  lanes = mix(0.5, lanes, 0.3 + 0.7 * calm);',
+    '  float fadeIn = smoothstep(DIN, DIN * 1.35, rr);',
+    '  float fadeOut = 1.0 - smoothstep(DOUT * 0.45, DOUT * 0.95, rr);',
+    '  return (0.35 + 0.9 * lanes) * fadeIn * fadeOut;',
+    '}',
+    'float stars(vec2 q, float cells, float cut) {',
+    '  vec2 cell = floor(q * cells);',
+    '  float seed = hash(cell);',
+    '  if (seed < cut) {',
+    '    return 0.0;',
+    '  }',
+    '  vec2 pos = fract(q * cells) - vec2(hash(cell + 7.3), hash(cell + 3.1));',
+    '  return exp(-dot(pos, pos) * 240.0);',
+    '}',
+    'void main() {',
+    '  vec2 sc = (gl_FragCoord.xy - res * 0.5) / min(res.x, res.y);',
+    '  sc = whirl(-0.22) * sc;',
+    '  float aim = length(sc);',
+    '  float yaw = 0.18 * sin(time * 0.021);',
+    '  float pitch = 0.30 + 0.05 * sin(time * 0.013 + 1.7);',
+    '  vec3 ro = vec3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * 24.0;',
+    '  vec3 fwd = normalize(-ro);',
+    '  vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), fwd));',
+    '  vec3 up = cross(fwd, right);',
+    '  vec3 rd = normalize(fwd * 1.5 + right * sc.x + up * sc.y);',
+    '  vec3 p = ro;',
+    '  vec3 v = rd;',
+    '  vec3 h = cross(p, v);',
+    '  float h2 = dot(h, h);',
+    '  vec3 acc = vec3(0.0);',
+    '  float trans = 1.0;',
+    '  float captured = 0.0;',
+    '  int hits = 0;',
+    '  for (int i = 0; i < 100; i++) {',
+    '    float r2 = dot(p, p);',
+    '    if (r2 < 1.0) {',
+    '      captured = 1.0;',
+    '      break;',
+    '    }',
+    '    if (r2 > 1600.0) {',
+    '      break;',
+    '    }',
+    '    float r = sqrt(r2);',
+    '    float dt = clamp(0.045 * r, 0.03, 0.6);',
+    '    dt = min(dt, abs(p.y) * 0.9 + 0.05);',
+    '    vec3 pull = -1.5 * h2 * p / (r2 * r2 * r);',
+    '    vec3 pPrev = p;',
+    '    v += pull * dt;',
+    '    p += v * dt;',
+    '    if (pPrev.y * p.y < 0.0 && hits < 3) {',
+    '      float f = pPrev.y / (pPrev.y - p.y);',
+    '      vec3 hit = mix(pPrev, p, f);',
+    '      float rr = length(hit.xz);',
+    '      if (rr > DIN && rr < DOUT) {',
+    '        bool secondary = hits > 0;',
+    '        if (!secondary || rr < DOUT * 0.75) {',
+    '          float glow = diskGlow(hit, rr);',
+    '          float temp = pow(DIN / rr, 0.75);',
+    '          vec3 tint = bbody(temp);',
+    '          vec3 tangent = normalize(vec3(-hit.z, 0.0, hit.x));',
+    '          float beta = min(sqrt(0.5 / rr), 0.7);',
+    '          float dop = 1.0 / max(1.0 - beta * dot(tangent, normalize(v)), 0.35);',
+    '          float beam = clamp(dop * dop * dop, 0.15, 3.2);',
+    '          float gred = sqrt(max(1.0 - 1.0 / rr, 0.0));',
+    '          float w = secondary ? 0.42 : 1.0;',
+    '          acc += tint * glow * beam * gred * 1.6 * trans * w;',
+    '          trans *= mix(1.0, 0.55, clamp(glow, 0.0, 1.0));',
+    '        }',
+    '      }',
+    '      hits++;',
+    '    }',
+    '  }',
+    '  vec3 col = acc;',
+    '  if (captured < 0.5) {',
+    '    vec3 dome = normalize(v);',
+    '    vec2 sky = vec2(atan(dome.x, dome.z), dome.y);',
+    '    vec3 neb = vec3(0.35, 0.25, 0.55) * fbm(sky * 2.6)',
+    '      + vec3(0.15, 0.22, 0.45) * fbm(sky * 1.3);',
+    '    float glint = stars(sky, 46.0, 0.993) + stars(sky + 31.7, 130.0, 0.996) * 0.7;',
+    '    float skyReach = 1.0 - smoothstep(0.18, 0.46, aim);',
+    '    col += (neb * 0.4 + vec3(0.9, 0.93, 1.0) * glint * 0.8) * skyReach * trans;',
+    '  }',
+    '  col = 1.0 - exp(-col);',
+    '  float lum = dot(col, vec3(0.299, 0.587, 0.114));',
+    '  float vin = 1.0 - smoothstep(0.34, 0.5, aim);',
+    '  float alpha = clamp(lum * 1.7 + captured * 0.9, 0.0, 1.0) * vin;',
+    '  gl_FragColor = vec4(col, alpha);',
+    '}',
+  ].join('\n');
+
+  /* One factory, two canvases: the brand mark and the preview window share
+     the same shader and a single frame loop, so the mock is the real render
+     and the two can never drift out of phase. */
+  var HOLE_VERT = vertSrc;
+  var HOLE_FRAG = fragSrc;
+  var renderers = [];
+  var running = true;
+  var born = performance.now();
+
+  function mount(cv) {
+    if (!cv) return;
+    var cssW = cv.clientWidth;
+    var cssH = cv.clientHeight;
+    if (!cssW || !cssH) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    cv.width = Math.max(1, Math.round(cssW * dpr));
+    cv.height = Math.max(1, Math.round(cssH * dpr));
+
+    var gl = cv.getContext('webgl', {
+      alpha: true,
+      premultipliedAlpha: false,
+      antialias: false,
+      depth: false,
+      stencil: false,
+    });
+
+    if (!gl) {
+      cv.style.background =
+        'radial-gradient(circle at 50% 48%, rgba(255,150,70,0.22), rgba(120,90,255,0.08) 40%, transparent 62%)';
+      return;
+    }
+
+    function shader(kind, src) {
+      var sh = gl.createShader(kind);
+      if (!sh) return null;
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        gl.deleteShader(sh);
+        return null;
+      }
+      return sh;
+    }
+
+    var vs = shader(gl.VERTEX_SHADER, HOLE_VERT);
+    var fs = shader(gl.FRAGMENT_SHADER, HOLE_FRAG);
+    if (!vs || !fs) return;
+
+    var prog = gl.createProgram();
+    if (!prog) return;
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+    gl.useProgram(prog);
+
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    var slot = gl.getAttribLocation(prog, 'spot');
+    gl.enableVertexAttribArray(slot);
+    gl.vertexAttribPointer(slot, 2, gl.FLOAT, false, 0, 0);
+    gl.viewport(0, 0, cv.width, cv.height);
+    gl.uniform2f(gl.getUniformLocation(prog, 'res'), cv.width, cv.height);
+    gl.clearColor(0, 0, 0, 0);
+
+    renderers.push({ gl: gl, uTime: gl.getUniformLocation(prog, 'time') });
+  }
+
+  function tick(now) {
+    if (!running) return;
+    var t = 12.0 + (now - born) / 1000.0;
+    for (var i = 0; i < renderers.length; i++) {
+      var r = renderers[i];
+      r.gl.uniform1f(r.uTime, t);
+      r.gl.clear(r.gl.COLOR_BUFFER_BIT);
+      r.gl.drawArrays(r.gl.TRIANGLES, 0, 3);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function start() {
+    mount(document.getElementById('hole'));
+    requestAnimationFrame(tick);
+  }
+
+  // The mock canvas only has a size once the right column has been laid out.
+  if (document.readyState === 'complete') start();
+  else window.addEventListener('load', start);
+  window.setTimeout(function () { if (!renderers.length) start(); }, 400);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      running = false;
+    } else if (!running) {
+      running = true;
+      born = performance.now() - 12000;
+      requestAnimationFrame(tick);
+    }
+  });
+})();
+</script>
+</body>
+</html>

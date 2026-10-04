@@ -1,0 +1,79 @@
+# Node
+node_modules/
+
+# Vite / frontend build
+dist/
+dist-build/
+
+# Rust build artifacts
+target/
+src-tauri/target/
+installer/target/
+
+# Local cargo config & home (mirror settings, registry cache)
+.cargo/
+.cargo-home/
+installer/.cargo/
+
+# PS1 scripts (dev utilities, not part of the build)
+*.ps1
+
+# Logs
+*.log
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Env / secrets
+.env
+.env.*
+
+# Local-only landing site (kept out of the repository on purpose)
+public/index.html
+public/preview.html
+public/docs.html
+public/contacts.html
+public/privacy.html
+public/terms.html
+public/home.css
+public/screen-main.jpg
+public/screen-settings.jpg
+public/screen-traffic.jpg
+public/site.css
+# The landing site is a whole folder, not a handful of files. Listing them one
+# by one kept leaking the rest into commits: the copy of the site brought its
+# own CNAME, blackhole.js, killswitch-motion.*, app-mock.css and flag assets,
+# none of which the explicit list above covered.
+public/CNAME
+public/blackhole.js
+public/killswitch-motion.css
+public/killswitch-motion.js
+public/app-mock.css
+public/screen-games.jpg
+public/screen-servers.jpg
+public/screen-*-material.jpg
+# The landing site keeps its own handful of flag svgs at the root, separate
+# from the app's full set under public/flags/.
+public/de.svg
+public/fi.svg
+public/nl.svg
+public/pl.svg
+public/us.svg
+public/flags/dd.dd
+# The zipped site update, built to hand over to the marketing repo.
+wawity-site-update.zip
+# Promo films and their Remotion sources. 31MB of mp4 that the client never
+# loads; they belong to the marketing repo. The two zips alongside them are
+# build output that duplicates what is already in those folders.
+public/promo/
+public/_promo-src/
+public/promo-player.css
+public/promo-player.js
+public/wawity-site-demos.zip
+wawity-fix.zip
+
+# Session tooling (not part of the project)
+.opencode/
+temp-skills/
