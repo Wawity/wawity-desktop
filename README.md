@@ -2,8 +2,8 @@
 
 **Wawity** is a Windows VPN client built on top of [sing-box](https://github.com/SagerNet/sing-box). It ships as a desktop GUI app (Tauri + Vue 3) and a companion CLI/TUI client, both powered by a shared Rust engine that handles protocol parsing, process supervision, and Windows Firewall–based traffic lockdown.
 
-![Wawity client screenshot](<img width="1000" height="700" alt="изображение" src="https://github.com/user-attachments/assets/99376508-bec3-475e-be7d-fed6fa9e3eab" />
-)
+<img width="1000" height="700" alt="изображение" src="https://github.com/user-attachments/assets/7090b17b-3370-4301-9782-d7ae371b7f38" />
+
 
 🇷🇺 Русская версия: [README.ru.md](./README.ru.md)
 
